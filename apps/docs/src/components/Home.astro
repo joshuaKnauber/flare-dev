@@ -1,11 +1,11 @@
 ---
 const scriptSnippet = `<span class="dim">&lt;!-- Add to your HTML --&gt;</span>
-&lt;script src=<span class="str">"https://unpkg.com/flare-design/dist/flare.js"</span>&gt;&lt;/script&gt;`;
+&lt;script src=<span class="str">"https://unpkg.com/flare-dev/dist/flare.js"</span>&gt;&lt;/script&gt;`;
 ---
 
 <div class="page">
   <main>
-    <svg class="icon" viewBox="100 95 315 325" width="40" height="40" fill="none">
+    <svg class="icon" viewBox="100 95 315 325" width="40" height="40" fill="none" overflow="visible">
       <path d="M268.585 309.261C268.585 320.923 265.129 332.322 258.655 342.018C252.181 351.714 242.979 359.271 232.213 363.733C221.447 368.196 209.6 369.363 198.171 367.088C186.742 364.813 176.243 359.198 168.003 350.952C159.763 342.707 154.152 332.201 151.878 320.764C149.605 309.327 150.772 297.472 155.231 286.699C159.691 275.925 167.242 266.717 176.932 260.238C186.621 253.76 198.012 250.302 209.665 250.302C225.292 250.302 240.278 256.514 251.328 267.571C262.377 278.628 268.585 293.624 268.585 309.261Z" fill="currentColor"/>
       <path d="M267.995 367.632C252.525 383.112 231.543 391.809 209.665 391.809C187.787 391.809 166.805 383.112 151.335 367.632C135.865 352.151 127.174 331.154 127.174 309.261C127.174 287.368 135.865 266.372 151.335 250.891L273.224 128.933C274.319 127.838 275.188 126.537 275.78 125.106C276.373 123.674 276.678 122.14 276.678 120.59C276.678 119.041 276.373 117.507 275.78 116.075C275.188 114.644 274.319 113.343 273.224 112.248C272.13 111.152 270.83 110.283 269.399 109.69C267.969 109.097 266.436 108.792 264.887 108.792C263.339 108.792 261.806 109.097 260.375 109.69C258.945 110.283 257.645 111.152 256.55 112.248L134.676 234.22C124.696 244.046 116.759 255.751 111.323 268.661C105.886 281.571 103.058 295.431 103.001 309.44C102.944 323.45 105.659 337.332 110.991 350.286C116.322 363.24 124.163 375.01 134.063 384.916C143.962 394.822 155.724 402.669 168.669 408.004C181.614 413.339 195.487 416.056 209.486 415.999C223.486 415.942 237.336 413.112 250.238 407.672C263.139 402.231 274.836 394.289 284.655 384.302C286.771 382.073 287.934 379.104 287.895 376.029C287.855 372.955 286.617 370.017 284.444 367.842C282.271 365.668 279.335 364.429 276.263 364.389C273.19 364.35 270.223 365.513 267.995 367.632Z" fill="currentColor"/>
       <path class="trail t1" d="M378.086 253.751L307.383 324.503C305.172 326.715 303.93 329.716 303.93 332.845C303.93 335.974 305.172 338.975 307.383 341.188C309.594 343.401 312.593 344.644 315.72 344.644C318.847 344.644 321.846 343.401 324.057 341.188L394.76 270.436C395.855 269.341 396.723 268.04 397.316 266.609C397.908 265.177 398.213 263.643 398.213 262.094C398.213 260.544 397.908 259.01 397.316 257.579C396.723 256.147 395.855 254.846 394.76 253.751C393.665 252.655 392.366 251.786 390.935 251.193C389.505 250.6 387.971 250.295 386.423 250.295C384.875 250.295 383.342 250.6 381.911 251.193C380.481 251.786 379.181 252.655 378.086 253.751Z" fill="currentColor"/>
@@ -29,7 +29,7 @@ const scriptSnippet = `<span class="dim">&lt;!-- Add to your HTML --&gt;</span>
       </div>
       <div class="cb-body">
         <div class="panel active" id="panel-claude">
-          <pre>Add flare-design as a dev dependency and set up the Vite plugin from flare-design/vite.</pre>
+          <pre>Add flare-dev as a dev dependency and set up the Vite plugin from flare-dev/vite.</pre>
         </div>
         <div class="panel" id="panel-script">
           <pre set:html={scriptSnippet} />
@@ -55,7 +55,7 @@ const scriptSnippet = `<span class="dim">&lt;!-- Add to your HTML --&gt;</span>
     </div>
 
     <div class="links">
-      <a href="https://github.com/joshuaKnauber/flare-design" class="social plausible-event-name=Github" target="_blank" rel="noopener" aria-label="GitHub">
+      <a href="https://github.com/joshuaKnauber/flare-dev" class="social plausible-event-name=Github" target="_blank" rel="noopener" aria-label="GitHub">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>
       </a>
       <a href="https://x.com/joshuaKnauber" class="social plausible-event-name=X" target="_blank" rel="noopener" aria-label="X">
@@ -112,31 +112,27 @@ const scriptSnippet = `<span class="dim">&lt;!-- Add to your HTML --&gt;</span>
     animation: fadeUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
   }
 
-  @keyframes trailFlow {
-    0% {
-      transform: translate(-10px, 10px);
-      opacity: 0;
+  @keyframes trailFloat {
+    0%, 100% {
+      transform: translate(0, 0);
     }
-    20% {
-      opacity: 1;
-    }
-    80% {
-      opacity: 1;
-    }
-    100% {
-      transform: translate(10px, -10px);
-      opacity: 0;
+    50% {
+      transform: translate(var(--tx), var(--ty));
     }
   }
 
   .trail {
-    animation: trailFlow 3s ease-in-out infinite;
+    animation: trailFloat var(--dur) ease-in-out infinite;
   }
 
-  .t1 { animation-delay: 0s; }
-  .t2 { animation-delay: 0.7s; }
-  .t3 { animation-delay: 0.35s; }
-  .t4 { animation-delay: 1.05s; }
+  .t1 { --tx: 14px; --ty: -14px; --dur: 2.6s; animation-delay: 0s; }
+  .t2 { --tx: 11px; --ty: -11px; --dur: 3.2s; animation-delay: 0.4s; }
+  .t3 { --tx: 9px;  --ty: -9px;  --dur: 2s;   animation-delay: 0.2s; }
+  .t4 { --tx: 18px; --ty: -18px; --dur: 3.6s; animation-delay: 0.7s; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .trail { animation: none; }
+  }
 
   @keyframes fadeUp {
     from {
@@ -390,9 +386,9 @@ const scriptSnippet = `<span class="dim">&lt;!-- Add to your HTML --&gt;</span>
   });
 
   const copyTexts: Record<string, string> = {
-    claude: `Add flare-design as a dev dependency and set up the Vite plugin from flare-design/vite.`,
+    claude: `Add flare-dev as a dev dependency and set up the Vite plugin from flare-dev/vite.`,
     script: `<!-- Add to your HTML -->
-<script src="https://unpkg.com/flare-design/dist/flare.js"><\/script>`,
+<script src="https://unpkg.com/flare-dev/dist/flare.js"><\/script>`,
   };
 
   copyBtn?.addEventListener('click', () => {

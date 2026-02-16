@@ -1,4 +1,4 @@
-const SCRIPT_URL = "https://unpkg.com/flare-design/dist/flare.js";
+const SCRIPT_URL = "https://unpkg.com/flare-dev/dist/flare.js";
 
 export default function flare() {
   return {
