@@ -1,6 +1,6 @@
 # Flare
 
-**[Try the demo →](https://flaredev.com)**
+**[Try the demo →](https://tryflare.dev)**
 
 A visual CSS inspector for designing in the browser. Edit styles visually, then copy a prompt to apply changes to your source with AI.
 
