@@ -53,8 +53,8 @@
   --f-shadow-trigger-h: 0 4px 16px rgba(0 0 0 / 0.12), 0 0 0 1px rgba(224 104 0 / 0.2), 0 0 20px rgba(224 104 0 / 0.06);
 }
 
-/* ── Trigger (collapsed) ────────────────────────── */
-.f-trigger {
+/* ── Shell (morphing container) ─────────────────── */
+.f-shell {
   position: fixed;
   top: 16px;
   right: 16px;
@@ -64,76 +64,74 @@
   border: 1px solid var(--f-border);
   background: var(--f-bg);
   color: var(--f-text);
-  cursor: pointer;
-  display: grid;
-  place-items: center;
   z-index: var(--f-z);
   box-shadow: var(--f-shadow-trigger);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  overflow: hidden;
+  font-family: var(--f-font);
+  font-size: 12px;
+  transition:
+    top 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    right 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    left 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    width 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    height 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    border-radius 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.f-trigger:hover {
-  transform: scale(1.06);
+.f-shell:not(.f-expanded) {
+  cursor: pointer;
+}
+
+.f-shell:not(.f-expanded):hover {
   border-color: var(--f-accent);
   box-shadow: var(--f-shadow-trigger-h);
 }
 
-.f-trigger:active {
-  transform: scale(0.97);
-}
-
-.f-trigger.f-left {
+.f-shell.f-left {
   right: auto;
   left: 16px;
 }
 
-/* ── Panel (expanded) ───────────────────────────── */
-.f-panel {
-  position: fixed;
+.f-shell.f-expanded {
   top: 12px;
   right: 12px;
-  bottom: 12px;
   width: 320px;
-  z-index: var(--f-z);
-  background: var(--f-bg);
-  border: 1px solid var(--f-border);
+  height: calc(100dvh - 24px);
   border-radius: 14px;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  font-family: var(--f-font);
-  font-size: 12px;
-  color: var(--f-text);
   box-shadow: var(--f-shadow-panel);
-  animation: f-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.f-panel.f-left {
+.f-shell.f-left.f-expanded {
   right: auto;
   left: 12px;
-  animation-name: f-slide-in-left;
 }
 
-@keyframes f-slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(16px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
+/* Trigger icon (centered in collapsed state) */
+.f-shell-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
 }
 
-@keyframes f-slide-in-left {
-  from {
-    opacity: 0;
-    transform: translateX(-16px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
+.f-shell.f-expanded .f-shell-icon {
+  opacity: 0;
+}
+
+/* Panel content (fades in after morph) */
+.f-shell-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.f-shell-content.f-visible {
+  opacity: 1;
 }
 
 /* ── Top Bar ────────────────────────────────────── */
