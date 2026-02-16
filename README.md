@@ -1,5 +1,7 @@
 # Flare
 
+**[Try the demo →](https://flaredev.com)**
+
 A visual CSS inspector for designing in the browser. Edit styles visually, then copy a prompt to apply changes to your source with AI.
 
 1. **Edit visually** — click any element, tweak layout / spacing / typography / colors
