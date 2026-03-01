@@ -12,6 +12,7 @@ import {
   CaseSensitive,
   CaseUpper,
   CircleDot,
+  GripVertical,
   Italic,
   MoveHorizontal,
   Square,
@@ -37,15 +38,14 @@ import {
   PropRow,
   Section,
   SelectDropdown,
-  SettingsPopover,
   SubPanel,
   ValueInput,
 } from "./components";
 import { FONT_SIZE_UNITS, TYPO_UNITS } from "./constants";
 import {
   useAvailableFonts,
+  useDrag,
   useInspector,
-  usePosition,
   useStyleEditor,
   useTheme,
 } from "./hooks";
@@ -54,8 +54,10 @@ import {
   IconCorners,
   IconDashedRect,
   IconFlare,
+  IconMoon,
   IconRoundedRect,
   IconSolidRect,
+  IconSun,
 } from "./icons";
 import { buildPrompt } from "./utils";
 
@@ -119,7 +121,7 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
   }, []);
 
   const { theme, toggle: toggleTheme } = useTheme(shadowHost);
-  const { side, toggle: toggleSide } = usePosition();
+  const drag = useDrag(open);
   const {
     inspecting,
     selectedEl,
@@ -141,18 +143,19 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
     navigator.clipboard.writeText(prompt);
   };
 
-  const shellClass = [
-    "f-shell",
-    open ? "f-expanded" : "",
-    side === "left" ? "f-left" : "",
-  ]
+  const shellClass = ["f-shell", open ? "f-expanded" : ""]
     .filter(Boolean)
     .join(" ");
 
   return (
     <div
+      ref={drag.shellRef}
       className={shellClass}
-      onClick={!expanded ? handleOpen : undefined}
+      style={{ left: drag.pos.x, top: drag.pos.y }}
+      onPointerDown={!expanded ? drag.onPointerDown : undefined}
+      onClick={
+        !expanded ? () => { if (!drag.moved.current) handleOpen(); } : undefined
+      }
       role={!expanded ? "button" : undefined}
       tabIndex={!expanded ? 0 : undefined}
       onKeyDown={
@@ -178,12 +181,19 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
               <span>Flare</span>
             </div>
             <div className="f-topbar-actions">
-              <SettingsPopover
-                theme={theme}
-                onToggleTheme={toggleTheme}
-                side={side}
-                onToggleSide={toggleSide}
-              />
+              <button
+                className="f-settings-btn"
+                onClick={toggleTheme}
+                title={theme === "dark" ? "Light mode" : "Dark mode"}
+              >
+                {theme === "dark" ? <IconSun /> : <IconMoon />}
+              </button>
+              <button
+                className="f-drag-handle"
+                onPointerDown={drag.onPointerDown}
+              >
+                <GripVertical size={14} strokeWidth={1.5} />
+              </button>
               <button className="f-collapse-btn" onClick={handleClose}>
                 <IconCollapse />
               </button>

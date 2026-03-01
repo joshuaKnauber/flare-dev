@@ -1,8 +1,6 @@
-import { PanelLeft, PanelRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { PanelSide } from "../hooks";
 import { useClickOutside } from "../hooks";
-import { IconChevron, IconEllipsis, IconMoon, IconSun } from "../icons";
+import { IconChevron } from "../icons";
 import { getElementLabel, isFlareElement } from "../utils";
 
 const SECTION_KEY = "flare-section-";
@@ -232,60 +230,3 @@ export function CopyPromptBar({
   );
 }
 
-// ── SettingsPopover ────────────────────────────────
-
-export function SettingsPopover({
-  theme,
-  onToggleTheme,
-  side,
-  onToggleSide,
-}: {
-  theme: "dark" | "light";
-  onToggleTheme: () => void;
-  side: PanelSide;
-  onToggleSide: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useClickOutside(ref, open, () => setOpen(false));
-
-  return (
-    <div className="f-settings-wrap" ref={ref}>
-      <button
-        className="f-settings-btn"
-        onClick={() => setOpen((o) => !o)}
-        title="Settings"
-      >
-        <IconEllipsis />
-      </button>
-      {open && (
-        <div className="f-settings-popover">
-          <button
-            className="f-settings-item"
-            onClick={() => {
-              onToggleTheme();
-              setOpen(false);
-            }}
-          >
-            {theme === "dark" ? <IconSun /> : <IconMoon />}
-            <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
-          </button>
-          <button
-            className="f-settings-item"
-            onClick={() => {
-              onToggleSide();
-              setOpen(false);
-            }}
-          >
-            {side === "right" ? (
-              <PanelLeft size={14} strokeWidth={1.5} />
-            ) : (
-              <PanelRight size={14} strokeWidth={1.5} />
-            )}
-            <span>Move to {side === "right" ? "left" : "right"}</span>
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}

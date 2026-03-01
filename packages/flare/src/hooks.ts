@@ -30,31 +30,176 @@ export function useTheme(shadowHost: HTMLElement) {
   return { theme, toggle };
 }
 
-// ── Position ───────────────────────────────────────
+// ── Drag / Position ───────────────────────────────
 const POS_KEY = "flare-position";
-export type PanelSide = "right" | "left";
+const SIDE_KEY = "flare-side";
+type PanelSide = "right" | "left";
 
-export function usePosition() {
-  const [side, setSideState] = useState<PanelSide>(() => {
-    try {
-      const v = localStorage.getItem(POS_KEY);
-      return v === "left" ? "left" : "right";
-    } catch {
-      return "right";
+const COLLAPSED_SIZE = 40;
+const EXPANDED_WIDTH = 320;
+const EXPANDED_MARGIN = 12;
+const COLLAPSED_MARGIN = 16;
+const DRAG_THRESHOLD = 3;
+
+function clampVal(v: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function clampPos(
+  x: number,
+  y: number,
+  isExpanded: boolean,
+): { x: number; y: number } {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if (isExpanded) {
+    const panelH = vh - EXPANDED_MARGIN * 2;
+    return {
+      x: clampVal(x, EXPANDED_MARGIN, vw - EXPANDED_WIDTH - EXPANDED_MARGIN),
+      y: clampVal(y, EXPANDED_MARGIN, vh - panelH - EXPANDED_MARGIN),
+    };
+  }
+  return {
+    x: clampVal(x, EXPANDED_MARGIN, vw - COLLAPSED_SIZE - EXPANDED_MARGIN),
+    y: clampVal(y, EXPANDED_MARGIN, vh - COLLAPSED_SIZE - EXPANDED_MARGIN),
+  };
+}
+
+function loadSide(): PanelSide {
+  try {
+    const s = localStorage.getItem(SIDE_KEY);
+    if (s === "left" || s === "right") return s;
+    // Migrate from old key that stored "left"/"right"
+    const old = localStorage.getItem(POS_KEY);
+    if (old === "left" || old === "right") return old;
+  } catch {}
+  return "right";
+}
+
+function loadPos(side: PanelSide): { x: number; y: number } {
+  try {
+    const raw = localStorage.getItem(POS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.x === "number" && typeof parsed.y === "number")
+        return parsed;
     }
-  });
+  } catch {}
+  return {
+    x:
+      side === "right"
+        ? window.innerWidth - COLLAPSED_SIZE - COLLAPSED_MARGIN
+        : COLLAPSED_MARGIN,
+    y: COLLAPSED_MARGIN,
+  };
+}
 
-  const toggle = useCallback(() => {
-    setSideState((prev) => {
-      const next = prev === "right" ? "left" : "right";
-      try {
-        localStorage.setItem(POS_KEY, next);
-      } catch {}
+function savePos(p: { x: number; y: number }) {
+  try {
+    localStorage.setItem(POS_KEY, JSON.stringify(p));
+  } catch {}
+}
+
+export function useDrag(expanded: boolean) {
+  const [pos, setPos] = useState(() => loadPos(loadSide()));
+
+  const dragging = useRef(false);
+  const moved = useRef(false);
+  const dragStart = useRef({ px: 0, py: 0, ox: 0, oy: 0 });
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const expandedRef = useRef(expanded);
+  const posRef = useRef(pos);
+  posRef.current = pos;
+  expandedRef.current = expanded;
+
+  // Remember collapsed position so we can restore it on close
+  const collapsedPos = useRef<{ x: number; y: number } | null>(null);
+
+  // Recalculate on expand / collapse
+  const prevExpanded = useRef(expanded);
+  useEffect(() => {
+    if (prevExpanded.current === expanded) return;
+    prevExpanded.current = expanded;
+    setPos((prev) => {
+      let next: { x: number; y: number };
+      if (expanded) {
+        // Save where the pill was, then center the panel on it
+        collapsedPos.current = prev;
+        next = clampPos(prev.x - (EXPANDED_WIDTH - COLLAPSED_SIZE) / 2, prev.y, true);
+      } else {
+        // Restore the pill to where it was before expanding
+        next = collapsedPos.current
+          ? clampPos(collapsedPos.current.x, collapsedPos.current.y, false)
+          : clampPos(prev.x + (EXPANDED_WIDTH - COLLAPSED_SIZE) / 2, prev.y, false);
+        collapsedPos.current = null;
+      }
+      savePos(next);
       return next;
     });
+  }, [expanded]);
+
+  // Clamp on window resize
+  useEffect(() => {
+    const onResize = () => {
+      setPos((prev) => {
+        const c = clampPos(prev.x, prev.y, expandedRef.current);
+        savePos(c);
+        return c;
+      });
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  return { side, toggle };
+  // Pointer-down handler (attach to drag surface)
+  const onPointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    dragging.current = true;
+    moved.current = false;
+    const cur = posRef.current;
+    dragStart.current = { px: e.clientX, py: e.clientY, ox: cur.x, oy: cur.y };
+
+    const shell = shellRef.current;
+    if (shell) shell.classList.add("f-dragging");
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - dragStart.current.px;
+      const dy = ev.clientY - dragStart.current.py;
+      if (
+        !moved.current &&
+        Math.abs(dx) < DRAG_THRESHOLD &&
+        Math.abs(dy) < DRAG_THRESHOLD
+      )
+        return;
+      moved.current = true;
+      const isExp = expandedRef.current;
+      const clamped = clampPos(
+        dragStart.current.ox + dx,
+        isExp ? EXPANDED_MARGIN : dragStart.current.oy + dy,
+        isExp,
+      );
+      setPos(clamped);
+    };
+
+    const onUp = () => {
+      dragging.current = false;
+      if (shell) shell.classList.remove("f-dragging");
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      // If dragged while expanded, discard saved collapsed position
+      // so collapse will center the pill on the new panel position
+      if (moved.current && expandedRef.current) collapsedPos.current = null;
+      setPos((p) => {
+        savePos(p);
+        return p;
+      });
+    };
+
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+  }, []);
+
+  return { pos, onPointerDown, moved, shellRef };
 }
 
 // ── Inspector ──────────────────────────────────────

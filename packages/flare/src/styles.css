@@ -63,8 +63,6 @@
 /* ── Shell (morphing container) ─────────────────── */
 .f-shell {
   position: fixed;
-  top: 16px;
-  right: 16px;
   width: 40px;
   height: 40px;
   border-radius: 12px;
@@ -78,7 +76,6 @@
   font-size: 12px;
   transition:
     top 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    right 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     height 0.3s cubic-bezier(0.16, 1, 0.3, 1),
@@ -87,7 +84,8 @@
 }
 
 .f-shell:not(.f-expanded) {
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
 }
 
 .f-shell:not(.f-expanded):hover {
@@ -95,23 +93,15 @@
   box-shadow: var(--f-shadow-trigger-h);
 }
 
-.f-shell.f-left {
-  right: auto;
-  left: 16px;
+.f-shell.f-dragging {
+  transition: none;
 }
 
 .f-shell.f-expanded {
-  top: 12px;
-  right: 12px;
   width: 320px;
   height: calc(100dvh - 24px);
   border-radius: 12px;
   box-shadow: var(--f-shadow-panel);
-}
-
-.f-shell.f-left.f-expanded {
-  right: auto;
-  left: 12px;
 }
 
 /* Trigger icon (centered in collapsed state) */
@@ -192,6 +182,30 @@
 .f-collapse-btn:active,
 .f-settings-btn:active {
   transform: scale(0.9);
+}
+
+/* ── Drag Handle ───────────────────────────────── */
+.f-drag-handle {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--f-text-dim);
+  cursor: grab;
+  border-radius: var(--f-radius-sm);
+  touch-action: none;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
+}
+
+.f-drag-handle:hover {
+  background: var(--f-surface-2);
+  color: var(--f-text);
+}
+
+.f-drag-handle:active {
+  cursor: grabbing;
 }
 
 /* ── Settings Popover ───────────────────────────── */

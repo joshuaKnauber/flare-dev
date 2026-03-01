@@ -17,6 +17,5 @@ export {
   IconButton,
   PropRow,
   Section,
-  SettingsPopover,
   SubPanel,
 } from "./layout";
