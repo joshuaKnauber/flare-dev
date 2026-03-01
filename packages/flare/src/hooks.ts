@@ -575,13 +575,13 @@ const TRACKED_PROPS = [
 
 type CSSProp = (typeof TRACKED_PROPS)[number];
 
+const toKebab = (s: string) => s.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
+
 function readComputedStyles(el: Element): Record<string, string> {
   const computed = getComputedStyle(el);
   const result: Record<string, string> = {};
   for (const prop of TRACKED_PROPS) {
-    result[prop] = computed.getPropertyValue(
-      prop.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`),
-    );
+    result[prop] = computed.getPropertyValue(toKebab(prop));
   }
   return result;
 }
@@ -666,7 +666,7 @@ export function useStyleEditor(selectedEl: Element | null) {
   const setValue = useCallback(
     (prop: CSSProp, value: string) => {
       if (!selectedEl || !(selectedEl instanceof HTMLElement)) return;
-      selectedEl.style[prop] = value;
+      selectedEl.style.setProperty(toKebab(prop), value, "important");
       setOverrides((prev) => {
         const next = { ...prev, [prop]: value };
         // Sync to persistent store
@@ -683,7 +683,7 @@ export function useStyleEditor(selectedEl: Element | null) {
   const resetCurrent = useCallback(() => {
     if (!selectedEl || !(selectedEl instanceof HTMLElement)) return;
     for (const prop of Object.keys(overrides) as CSSProp[]) {
-      selectedEl.style[prop] = "";
+      selectedEl.style.removeProperty(toKebab(prop));
     }
     storeRef.current.delete(selectedEl);
     const orig = readComputedStyles(selectedEl);
@@ -698,7 +698,7 @@ export function useStyleEditor(selectedEl: Element | null) {
     for (const [el, entry] of storeRef.current.entries()) {
       if (el instanceof HTMLElement) {
         for (const prop of Object.keys(entry.overrides) as CSSProp[]) {
-          el.style[prop] = "";
+          el.style.removeProperty(toKebab(prop));
         }
       }
     }

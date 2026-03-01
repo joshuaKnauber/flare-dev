@@ -49,12 +49,16 @@ export function ValueInput({
   } | null>(null);
 
   const draftParsed = parseValue(draft);
-  const currentUnit = draftParsed.unit;
+  const lastUnitRef = useRef(draftParsed.unit);
+  if (draftParsed.unit) lastUnitRef.current = draftParsed.unit;
+  const currentUnit = draftParsed.unit || lastUnitRef.current;
 
   useEffect(() => {
     if (!focused) {
       setDraft(value);
       setInputStr(stripUnit(value));
+      const parsed = parseValue(value);
+      if (parsed.unit) lastUnitRef.current = parsed.unit;
     }
   }, [value, focused]);
 

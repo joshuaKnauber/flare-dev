@@ -162,7 +162,11 @@ export function buildPrompt(entries: ElementEntry[]): string {
   if (blocks.length === 0) return "";
 
   return [
-    `I tweaked styles in the browser — apply to source. DOM classes may not match source directly (could be Tailwind, CSS modules, components, etc).`,
+    `I tweaked styles in the browser — apply these changes to the source code intelligently.`,
+    `The DOM classes/structure may not map 1:1 to source — interpret the intent behind each change:`,
+    `- If the element comes from a component, update the component's styles (props, internal CSS, class, etc.) rather than adding overrides at the call site.`,
+    `- Use the best idiom for the project's stack (e.g. Tailwind classes, CSS module updates, styled-component changes, style props) instead of raw inline styles.`,
+    `- If the same result can be expressed more cleanly (e.g. a shorthand property, a design token, a utility class), prefer that over a literal translation of the CSS.`,
     ``,
     blocks.join("\n\n"),
   ].join("\n");
