@@ -50,9 +50,19 @@ function mount() {
   );
 }
 
-// Mount when DOM is ready
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", mount);
-} else {
-  mount();
+// Mount when DOM is ready (unless hidden for this session)
+const hidden = (() => {
+  try {
+    return sessionStorage.getItem("flare-hidden") === "true";
+  } catch {
+    return false;
+  }
+})();
+
+if (!hidden) {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", mount);
+  } else {
+    mount();
+  }
 }

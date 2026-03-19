@@ -12,7 +12,8 @@ import {
   CaseSensitive,
   CaseUpper,
   CircleDot,
-  GripVertical,
+  Ellipsis,
+  EyeOff,
   Italic,
   MoveHorizontal,
   Square,
@@ -120,6 +121,35 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
     morphTimer.current = setTimeout(() => setExpanded(false), 250);
   }, []);
 
+  const handleHideSession = useCallback(() => {
+    try {
+      sessionStorage.setItem("flare-hidden", "true");
+    } catch {}
+    const host = document.getElementById("flare-host");
+    if (host) host.style.display = "none";
+  }, []);
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    // RAF to skip the click that opened the menu
+    let id = requestAnimationFrame(() => {
+      id = 0;
+      document.addEventListener("pointerdown", onDown);
+    });
+    function onDown(e: PointerEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node))
+        setMenuOpen(false);
+    }
+    return () => {
+      if (id) cancelAnimationFrame(id);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [menuOpen]);
+
   const { theme, toggle: toggleTheme } = useTheme(shadowHost);
   const drag = useDrag(open);
   const {
@@ -175,26 +205,44 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
       {expanded && (
         <div className={`f-shell-content${contentReady ? " f-visible" : ""}`}>
           {/* Top bar */}
-          <div className="f-topbar">
+          <div className="f-topbar" onPointerDown={drag.onPointerDown}>
             <div className="f-brand">
               <IconFlare />
               <span>Flare</span>
             </div>
             <div className="f-topbar-actions">
+              <div className="f-settings-wrap" ref={menuRef} onPointerDown={(e) => e.stopPropagation()}>
+                <button
+                  className="f-settings-btn"
+                  onClick={() => setMenuOpen((v) => !v)}
+                  title="Menu"
+                >
+                  <Ellipsis size={14} strokeWidth={1.5} />
+                </button>
+                {menuOpen && (
+                  <div className="f-settings-popover">
+                    <button
+                      className="f-settings-item"
+                      onClick={() => { toggleTheme(); setMenuOpen(false); }}
+                    >
+                      {theme === "dark" ? <IconSun /> : <IconMoon />}
+                      <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+                    </button>
+                    <button
+                      className="f-settings-item"
+                      onClick={handleHideSession}
+                    >
+                      <EyeOff size={14} strokeWidth={1.5} />
+                      <span>Hide for session</span>
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
-                className="f-settings-btn"
-                onClick={toggleTheme}
-                title={theme === "dark" ? "Light mode" : "Dark mode"}
+                className="f-collapse-btn"
+                onClick={handleClose}
+                onPointerDown={(e) => e.stopPropagation()}
               >
-                {theme === "dark" ? <IconSun /> : <IconMoon />}
-              </button>
-              <button
-                className="f-drag-handle"
-                onPointerDown={drag.onPointerDown}
-              >
-                <GripVertical size={14} strokeWidth={1.5} />
-              </button>
-              <button className="f-collapse-btn" onClick={handleClose}>
                 <IconCollapse />
               </button>
             </div>

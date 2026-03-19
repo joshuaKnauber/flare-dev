@@ -142,6 +142,12 @@
   padding: 12px 14px;
   border-bottom: 1px solid var(--f-border);
   flex-shrink: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.f-topbar:active {
+  cursor: grabbing;
 }
 
 .f-brand {
@@ -182,30 +188,6 @@
 .f-collapse-btn:active,
 .f-settings-btn:active {
   transform: scale(0.9);
-}
-
-/* ── Drag Handle ───────────────────────────────── */
-.f-drag-handle {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--f-text-dim);
-  cursor: grab;
-  border-radius: var(--f-radius-sm);
-  touch-action: none;
-  transition: background 0.15s, color 0.15s, transform 0.1s;
-}
-
-.f-drag-handle:hover {
-  background: var(--f-surface-2);
-  color: var(--f-text);
-}
-
-.f-drag-handle:active {
-  cursor: grabbing;
 }
 
 /* ── Settings Popover ───────────────────────────── */
