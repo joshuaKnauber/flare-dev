@@ -14,8 +14,10 @@ export {
 export {
   Breadcrumb,
   CopyPromptBar,
+  ElementComment,
   IconButton,
   PropRow,
   Section,
+  SourceReference,
   SubPanel,
 } from "./layout";

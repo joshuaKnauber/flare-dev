@@ -1,7 +1,13 @@
+import { ArrowUp, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useClickOutside } from "../hooks";
 import { IconChevron } from "../icons";
-import { getElementLabel, isFlareElement } from "../utils";
+import {
+  formatSourceLocation,
+  getElementLabel,
+  isFlareElement,
+  type ElementInfo,
+} from "../utils";
 
 const SECTION_KEY = "flare-section-";
 
@@ -147,6 +153,137 @@ export function Breadcrumb({
   );
 }
 
+export function SourceReference({
+  info,
+}: {
+  info: ElementInfo | null;
+}) {
+  if (!info?.source) return null;
+
+  const label = formatSourceLocation(info.source);
+  const stack = info.stack
+    .slice(1, 4)
+    .map((frame) => {
+      const location = formatSourceLocation(frame);
+      return frame.componentName ? `${frame.componentName} · ${location}` : location;
+    })
+    .filter(Boolean);
+
+  return (
+    <div className="f-source-ref" title={label}>
+      <div className="f-source-ref-main">
+        <span className="f-source-ref-label">Source</span>
+        <span className="f-source-ref-path">{label}</span>
+      </div>
+      {stack.length > 0 && (
+        <div className="f-source-ref-stack">
+          {stack.join("  |  ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ElementComment({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [editing, setEditing] = useState(true);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const submit = () => {
+    const nextValue = draft.trim();
+    onChange(nextValue);
+    setDraft(nextValue);
+    setEditing(!nextValue);
+  };
+
+  const handleDelete = () => {
+    setDraft("");
+    onChange("");
+    setEditing(true);
+  };
+
+  if (!editing && value.trim()) {
+    return (
+      <div className="f-element-comment">
+        <div
+          className="f-element-comment-pill"
+          role="button"
+          tabIndex={0}
+          onClick={() => setEditing(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setEditing(true);
+            }
+          }}
+          title="Edit comment"
+        >
+          <span className="f-element-comment-pill-text">
+            {value}
+          </span>
+          <button
+            className="f-element-comment-delete"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete();
+            }}
+            title="Delete comment"
+            aria-label="Delete comment"
+          >
+            <X size={12} strokeWidth={1.75} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="f-element-comment">
+      <div className="f-element-comment-editor">
+        <textarea
+          ref={inputRef}
+          className="f-element-comment-input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={submit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
+            if (e.key === "Escape") {
+              setDraft(value);
+              onChange(value.trim());
+              setEditing(!value.trim());
+            }
+          }}
+          placeholder="Add a note for this component"
+          rows={3}
+        />
+        <button
+          className="f-element-comment-submit"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={submit}
+          title="Save comment"
+          aria-label="Save comment"
+        >
+          <ArrowUp size={13} strokeWidth={1.8} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function CopyPromptBar({
   changeCount,
   onCopy,
@@ -204,7 +341,7 @@ export function CopyPromptBar({
         {state === "idle" ? (
           <>
             <span className="f-changes-count">
-              {changeCount} {changeCount === 1 ? "change" : "changes"}
+              {changeCount} {changeCount === 1 ? "update" : "updates"}
             </span>
             <div className="f-copy-bar-actions">
               <button className="f-reset-btn" onClick={onReset}>
@@ -229,4 +366,3 @@ export function CopyPromptBar({
     </div>
   );
 }
-

@@ -344,9 +344,177 @@
 }
 
 .f-crumb.active {
-  color: var(--f-accent);
-  background: var(--f-accent-dim);
+  color: var(--f-text);
+  background: transparent;
   font-weight: 500;
+}
+
+.f-source-ref {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 2px;
+  min-width: 0;
+}
+
+.f-source-ref-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.f-source-ref-label {
+  color: var(--f-text-mute);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.f-source-ref-path {
+  color: var(--f-text);
+  background: transparent;
+  border-radius: 4px;
+  padding: 2px 5px;
+  font-family: var(--f-font-label);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+.f-source-ref-stack {
+  color: var(--f-text-mute);
+  font-family: var(--f-font-label);
+  font-size: 10px;
+  line-height: 1.4;
+  padding-left: 47px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.f-element-comment {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.f-element-comment-pill {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--f-accent-dim);
+  border-radius: var(--f-radius-sm);
+  background: var(--f-accent-subtle);
+  color: var(--f-text);
+  cursor: pointer;
+  font-family: var(--f-font-label);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+  padding: 7px 30px 7px 10px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.f-element-comment-pill:hover {
+  border-color: var(--f-accent-dim);
+  background: var(--f-accent-dim);
+}
+
+.f-element-comment-pill-text {
+  display: block;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.f-element-comment-delete {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--f-radius-sm);
+  background: transparent;
+  color: var(--f-text-mute);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.f-element-comment-delete:hover {
+  background: rgba(255 92 92 / 0.12);
+  color: #ff7f7f;
+}
+
+.f-element-comment-delete:active {
+  transform: translateY(-50%) scale(0.9);
+}
+
+.f-element-comment-editor {
+  position: relative;
+  min-width: 0;
+}
+
+.f-element-comment-input {
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+  padding: 7px 32px 7px 10px;
+  border: 1px solid var(--f-border);
+  border-radius: var(--f-radius-sm);
+  background: var(--f-surface);
+  color: var(--f-text);
+  font-family: var(--f-font-label);
+  font-size: 11px;
+  line-height: 1.45;
+  outline: none;
+  box-shadow: var(--f-input-shadow);
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.f-element-comment-input::placeholder {
+  color: var(--f-text-mute);
+}
+
+.f-element-comment-input:hover {
+  border-color: var(--f-border-h);
+}
+
+.f-element-comment-input:focus {
+  border-color: var(--f-accent);
+  background: var(--f-surface-2);
+  box-shadow: var(--f-ring), var(--f-input-shadow);
+}
+
+.f-element-comment-submit {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--f-border);
+  border-radius: var(--f-radius-sm);
+  background: var(--f-surface);
+  color: var(--f-text-dim);
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.f-element-comment-submit:hover {
+  border-color: var(--f-accent);
+  background: var(--f-accent);
+  color: #fff;
+}
+
+.f-element-comment-submit:active {
+  transform: scale(0.9);
 }
 
 /* ── Scroll Container ───────────────────────────── */

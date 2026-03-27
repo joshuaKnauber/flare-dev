@@ -32,6 +32,7 @@ import {
   ColorSwatch,
   CopyPromptBar,
   DisplayModePicker,
+  ElementComment,
   ExpandableInput,
   FontDropdown,
   GridTrackEditor,
@@ -39,6 +40,7 @@ import {
   PropRow,
   Section,
   SelectDropdown,
+  SourceReference,
   SubPanel,
   ValueInput,
 } from "./components";
@@ -46,6 +48,7 @@ import { FONT_SIZE_UNITS, TYPO_UNITS } from "./constants";
 import {
   useAvailableFonts,
   useDrag,
+  useElementSource,
   useInspector,
   useStyleEditor,
   useTheme,
@@ -162,9 +165,22 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
     clearHighlight,
   } = useInspector();
   const editor = useStyleEditor(selectedEl);
+  const sourceInfo = useElementSource(selectedEl);
   const availableFonts = useAvailableFonts();
+  const { setElementSourceInfo } = editor;
+  const commentKeyRef = useRef(0);
+  const prevElRef = useRef(selectedEl);
+  if (prevElRef.current !== selectedEl) {
+    prevElRef.current = selectedEl;
+    commentKeyRef.current += 1;
+  }
 
   const changeCount = editor.totalChangeCount;
+
+  useEffect(() => {
+    if (!selectedEl) return;
+    setElementSourceInfo(selectedEl, sourceInfo);
+  }, [selectedEl, setElementSourceInfo, sourceInfo]);
 
   const handleCopy = () => {
     const entries = editor.getAllChanges();
@@ -257,12 +273,23 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
               <SquareMousePointer size={13} strokeWidth={1.5} />
               <span>{inspecting ? "Cancel" : "Select Element"}</span>
             </button>
-            <Breadcrumb
-              el={selectedEl}
-              onSelect={selectElement}
-              onHover={highlightElement}
-              onHoverEnd={clearHighlight}
-            />
+            {sourceInfo?.source ? (
+              <SourceReference info={sourceInfo} />
+            ) : (
+              <Breadcrumb
+                el={selectedEl}
+                onSelect={selectElement}
+                onHover={highlightElement}
+                onHoverEnd={clearHighlight}
+              />
+            )}
+            {selectedEl && (
+              <ElementComment
+                key={commentKeyRef.current}
+                value={editor.comment}
+                onChange={editor.setComment}
+              />
+            )}
           </div>
 
           {/* Scrollable content */}
@@ -274,7 +301,7 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
               </div>
             ) : (
               <>
-                <Section title="Layout">
+                <Section title="Layout" defaultOpen={false}>
                   <DisplayModePicker
                     value={editor.getValue("display")}
                     onChange={(v) => editor.setValue("display", v)}

@@ -1,8 +1,14 @@
+import type { ElementInfo, ElementSourceInfo } from "element-source";
+
 export interface ElementEntry {
   el: Element;
   overrides: Record<string, string>;
   original: Record<string, string>;
+  sourceInfo?: ElementInfo | null;
+  comment?: string;
 }
+
+export type { ElementInfo, ElementSourceInfo };
 
 export function toHex(color: string): string {
   const m = color.match(/rgba?\(\s*(\d+),\s*(\d+),\s*(\d+)/);
@@ -113,7 +119,7 @@ function shortLabel(el: Element): string {
 }
 
 /** Build a readable ancestor path: body > main.hero > div.container > h1 */
-function getAncestorPath(el: Element, maxDepth = 4): string {
+export function getAncestorPath(el: Element, maxDepth = 4): string {
   const parts: string[] = [];
   let cur: Element | null = el;
   while (cur && cur !== document.documentElement && parts.length < maxDepth) {
@@ -127,17 +133,44 @@ function getAncestorPath(el: Element, maxDepth = 4): string {
   return parts.join(" > ");
 }
 
+export function getPathSuffix(el: Element, maxDepth = 3): string {
+  const path = getAncestorPath(el, maxDepth);
+  const parts = path.split(" > ").filter(Boolean);
+  return parts.slice(-maxDepth).join(" > ");
+}
+
+export function formatSourceLocation(frame: ElementSourceInfo | null | undefined) {
+  if (!frame) return "";
+  const line =
+    frame.lineNumber != null
+      ? `:${frame.lineNumber}${frame.columnNumber != null ? `:${frame.columnNumber}` : ""}`
+      : "";
+  return `${frame.filePath}${line}`;
+}
+
 /** Build a compact description for one element's changes */
 function buildElementBlock(entry: ElementEntry): string {
-  const { el, overrides, original } = entry;
+  const { el, overrides, original, sourceInfo } = entry;
+  const comment = entry.comment?.trim() ?? "";
   const actualChanges = Object.entries(overrides).filter(
     ([prop, val]) => val !== original[prop],
   );
 
-  if (actualChanges.length === 0) return "";
+  if (actualChanges.length === 0 && !comment) return "";
 
-  const path = getAncestorPath(el);
+  const path = sourceInfo?.source ? getPathSuffix(el, 3) : getAncestorPath(el, 4);
   const text = getTextSnippet(el, 40);
+  const sourceHeader = sourceInfo?.source
+    ? `Source: ${formatSourceLocation(sourceInfo.source)}${sourceInfo.source.componentName ? ` (${sourceInfo.source.componentName})` : ""}`
+    : "";
+  const stackLines =
+    sourceInfo?.stack && sourceInfo.stack.length > 1
+      ? `Component stack:\n${sourceInfo.stack
+          .slice(0, 4)
+          .map((frame) => `  - ${formatSourceLocation(frame)}${frame.componentName ? ` (${frame.componentName})` : ""}`)
+          .join("\n")}`
+      : "";
+  const commentLine = comment ? `Comment: ${comment}` : "";
 
   const changeLines = actualChanges
     .map(([prop, val]) => {
@@ -147,8 +180,11 @@ function buildElementBlock(entry: ElementEntry): string {
     })
     .join("\n");
 
-  const identifier = text ? `"${text}" (${path})` : path;
-  return `${identifier}\n${changeLines}`;
+  const identifier = text ? `"${text}"` : path;
+  const domLine = path ? `DOM: ${path}` : "";
+  return [identifier, sourceHeader, domLine, stackLines, commentLine, changeLines]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /**

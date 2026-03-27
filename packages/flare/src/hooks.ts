@@ -1,5 +1,12 @@
+import { resolveElementInfo } from "element-source";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type ElementEntry, getElementLabel, isFlareElement } from "./utils";
+import {
+  type ElementEntry,
+  type ElementInfo,
+  formatSourceLocation,
+  getElementLabel,
+  isFlareElement,
+} from "./utils";
 
 // ── Theme ──────────────────────────────────────────
 const THEME_KEY = "flare-theme";
@@ -362,6 +369,7 @@ const GAP_POOL = 16;
 export function useInspector() {
   const [inspecting, setInspecting] = useState(false);
   const [selectedEl, setSelectedEl] = useState<Element | null>(null);
+  const hoverSourceCacheRef = useRef(new WeakMap<Element, string | null>());
 
   useEffect(() => {
     if (!inspecting) return;
@@ -424,6 +432,7 @@ export function useInspector() {
       ...gapStrips,
       ...gapLabels,
     ];
+    let hoverRequestId = 0;
 
     const positionLabel = (
       label: HTMLDivElement,
@@ -442,6 +451,35 @@ export function useInspector() {
       } else {
         label.style.display = "none";
       }
+    };
+
+    const setTooltipLabel = (el: Element) => {
+      const fallbackLabel = getElementLabel(el).full;
+      tooltip.textContent = fallbackLabel;
+
+      const cached = hoverSourceCacheRef.current.get(el);
+      if (cached !== undefined) {
+        tooltip.textContent = cached || fallbackLabel;
+        return;
+      }
+
+      const requestId = ++hoverRequestId;
+      void resolveBestElementInfo(el)
+        .then((info) => {
+          const sourceLabel = info.source
+            ? formatSourceLocation(info.source)
+            : null;
+          hoverSourceCacheRef.current.set(el, sourceLabel);
+          if (requestId === hoverRequestId) {
+            tooltip.textContent = sourceLabel || fallbackLabel;
+          }
+        })
+        .catch(() => {
+          hoverSourceCacheRef.current.set(el, null);
+          if (requestId === hoverRequestId) {
+            tooltip.textContent = fallbackLabel;
+          }
+        });
     };
 
     const showOverlay = (el: Element) => {
@@ -540,7 +578,7 @@ export function useInspector() {
       }
 
       // Tooltip
-      tooltip.textContent = getElementLabel(el).full;
+      setTooltipLabel(el);
       const tY =
         rect.top - m.top > 28
           ? rect.top - m.top - 24
@@ -553,6 +591,7 @@ export function useInspector() {
     };
 
     const hideOverlay = () => {
+      hoverRequestId += 1;
       allEls.forEach((el) => {
         el.style.display = "none";
       });
@@ -754,18 +793,84 @@ export function useClickOutside(
   }, [active, ref]);
 }
 
+export function useElementSource(selectedEl: Element | null) {
+  const cacheRef = useRef(new WeakMap<Element, ElementInfo | null>());
+  const [sourceInfo, setSourceInfo] = useState<ElementInfo | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!selectedEl) {
+      setSourceInfo(null);
+      return;
+    }
+
+    const cached = cacheRef.current.get(selectedEl);
+    if (cached !== undefined) {
+      setSourceInfo(cached);
+      return;
+    }
+
+    setSourceInfo(null);
+
+    void resolveBestElementInfo(selectedEl)
+      .then((info) => {
+        const normalized =
+          info.source || info.stack.length > 0 || info.componentName
+            ? info
+            : null;
+        cacheRef.current.set(selectedEl, normalized);
+        if (!cancelled) setSourceInfo(normalized);
+      })
+      .catch(() => {
+        cacheRef.current.set(selectedEl, null);
+        if (!cancelled) setSourceInfo(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEl]);
+
+  return sourceInfo;
+}
+
+function isLikelySourceFile(fileName: string | undefined) {
+  if (!fileName) return false;
+  return !fileName.includes("/node_modules/") && !fileName.startsWith("node:");
+}
+
+async function resolveBestElementInfo(node: Element): Promise<ElementInfo> {
+  const info = await resolveElementInfo(node);
+  if (info.source && !isLikelySourceFile(info.source.filePath)) {
+    return {
+      ...info,
+      source: null,
+      stack: info.stack.filter((frame) => isLikelySourceFile(frame.filePath)),
+    };
+  }
+  return info;
+}
+
 export function useStyleEditor(selectedEl: Element | null) {
+  const sourceCacheRef = useRef(new WeakMap<Element, ElementInfo | null>());
   // Persistent store: accumulates changes for every edited element
   const storeRef = useRef<
     Map<
       Element,
-      { overrides: Record<string, string>; original: Record<string, string> }
+      {
+        overrides: Record<string, string>;
+        original: Record<string, string>;
+        sourceInfo: ElementInfo | null;
+        comment: string;
+      }
     >
   >(new Map());
 
   // Current element's state (drives re-renders)
   const [original, setOriginal] = useState<Record<string, string>>({});
   const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [comment, setCommentState] = useState("");
   // Bump to force re-render when allChanges changes
   const [revision, setRevision] = useState(0);
 
@@ -780,13 +885,14 @@ export function useStyleEditor(selectedEl: Element | null) {
       const hasChanges = Object.entries(entry.overrides).some(
         ([p, v]) => v !== entry.original[p],
       );
-      if (!hasChanges) storeRef.current.delete(prev);
+      if (!hasChanges && !entry.comment.trim()) storeRef.current.delete(prev);
     }
     prevElRef.current = selectedEl;
 
     if (!selectedEl) {
       setOriginal({});
       setOverrides({});
+      setCommentState("");
       return;
     }
 
@@ -795,13 +901,32 @@ export function useStyleEditor(selectedEl: Element | null) {
     if (existing) {
       setOriginal(existing.original);
       setOverrides(existing.overrides);
+      setCommentState(existing.comment);
     } else {
       const orig = readComputedStyles(selectedEl);
-      storeRef.current.set(selectedEl, { overrides: {}, original: orig });
+      storeRef.current.set(selectedEl, {
+        overrides: {},
+        original: orig,
+        sourceInfo: sourceCacheRef.current.get(selectedEl) ?? null,
+        comment: "",
+      });
       setOriginal(orig);
       setOverrides({});
+      setCommentState("");
     }
   }, [selectedEl]);
+
+  const setElementSourceInfo = useCallback(
+    (el: Element, sourceInfo: ElementInfo | null) => {
+      sourceCacheRef.current.set(el, sourceInfo);
+      const entry = storeRef.current.get(el);
+      if (entry) {
+        entry.sourceInfo = sourceInfo;
+        setRevision((r) => r + 1);
+      }
+    },
+    [],
+  );
 
   const getValue = useCallback(
     (prop: string) => overrides[prop] ?? original[prop] ?? "",
@@ -824,6 +949,18 @@ export function useStyleEditor(selectedEl: Element | null) {
     [selectedEl],
   );
 
+  const setComment = useCallback(
+    (value: string) => {
+      if (!selectedEl) return;
+      const nextComment = value.trim();
+      setCommentState(nextComment);
+      const entry = storeRef.current.get(selectedEl);
+      if (entry) entry.comment = nextComment;
+      setRevision((r) => r + 1);
+    },
+    [selectedEl],
+  );
+
   // Reset only the current element's changes
   const resetCurrent = useCallback(() => {
     if (!selectedEl || !(selectedEl instanceof HTMLElement)) return;
@@ -832,9 +969,15 @@ export function useStyleEditor(selectedEl: Element | null) {
     }
     storeRef.current.delete(selectedEl);
     const orig = readComputedStyles(selectedEl);
-    storeRef.current.set(selectedEl, { overrides: {}, original: orig });
+    storeRef.current.set(selectedEl, {
+      overrides: {},
+      original: orig,
+      sourceInfo: sourceCacheRef.current.get(selectedEl) ?? null,
+      comment: "",
+    });
     setOverrides({});
     setOriginal(orig);
+    setCommentState("");
     setRevision((r) => r + 1);
   }, [selectedEl, overrides]);
 
@@ -850,10 +993,16 @@ export function useStyleEditor(selectedEl: Element | null) {
     storeRef.current.clear();
     if (selectedEl) {
       const orig = readComputedStyles(selectedEl);
-      storeRef.current.set(selectedEl, { overrides: {}, original: orig });
+      storeRef.current.set(selectedEl, {
+        overrides: {},
+        original: orig,
+        sourceInfo: sourceCacheRef.current.get(selectedEl) ?? null,
+        comment: "",
+      });
       setOriginal(orig);
     }
     setOverrides({});
+    setCommentState("");
     setRevision((r) => r + 1);
   }, [selectedEl]);
 
@@ -863,11 +1012,11 @@ export function useStyleEditor(selectedEl: Element | null) {
     const entries: ElementEntry[] = [];
     for (const [
       el,
-      { overrides: ov, original: orig },
+      { overrides: ov, original: orig, sourceInfo, comment },
     ] of storeRef.current.entries()) {
       const realChanges = Object.entries(ov).filter(([p, v]) => v !== orig[p]);
-      if (realChanges.length > 0) {
-        entries.push({ el, overrides: ov, original: orig });
+      if (realChanges.length > 0 || comment.trim()) {
+        entries.push({ el, overrides: ov, original: orig, sourceInfo, comment });
       }
     }
     return entries;
@@ -879,16 +1028,20 @@ export function useStyleEditor(selectedEl: Element | null) {
     let count = 0;
     for (const [
       ,
-      { overrides: ov, original: orig },
+      { overrides: ov, original: orig, comment },
     ] of storeRef.current.entries()) {
       count += Object.entries(ov).filter(([p, v]) => v !== orig[p]).length;
+      if (comment.trim()) count += 1;
     }
     return count;
   })();
 
   return {
+    comment,
     getValue,
     setValue,
+    setComment,
+    setElementSourceInfo,
     overrides,
     original,
     resetCurrent,
