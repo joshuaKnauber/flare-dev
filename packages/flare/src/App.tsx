@@ -267,6 +267,7 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
     `- these files belong to origin ${bridgeInfo.origin ?? ""}`,
     "- apply all files in `files` in the repo you are currently editing",
     "- each item contains `filePath` and `payload`",
+    "- always pay attention to `comment`, even if `snapshot.changes` or an item's `changes` array is empty",
     "- after successfully applying a file, delete that `filePath`",
     "- when done, run the same command again to wait for the next batch",
   ].join("\n");
