@@ -1,4 +1,6 @@
 ---
+const installSnippet = `npm install -D flare-dev`;
+
 const viteSnippet = `<span class="dim">// vite.config.ts</span>
 <span class="kw">import</span> flare <span class="kw">from</span> <span class="str">"flare-dev/vite"</span>
 
@@ -18,13 +20,16 @@ const scriptDevSnippet = `<span class="dim">&lt;!-- Or, load only on localhost t
   }
 &lt;/script&gt;`;
 
+const bridgeSnippet = `<span class="dim"># Start the bridge so Flare can push changes to your agent</span>
+npx flare-dev bridge`;
+
 const claudePrompt = `Set up flare-dev for visual CSS editing.
 
-If this project uses Vite:
-  npm install -D flare-dev
-  Then add the plugin to vite.config.ts:
-    import flare from "flare-dev/vite"
-    plugins: [flare()]
+npm install -D flare-dev
+
+If this project uses Vite, add the plugin to vite.config.ts:
+  import flare from "flare-dev/vite"
+  plugins: [flare()]
 
 If not using Vite, add this script tag to the HTML to only load on localhost:
   &lt;script&gt;
@@ -68,12 +73,32 @@ If not using Vite, add this script tag to the HTML to only load on localhost:
           </div>
         </div>
         <div class="panel" id="panel-vite">
+          <div class="step-label">Install</div>
+          <div class="snippet" data-copy="install">
+            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
+            <pre set:html={installSnippet} />
+          </div>
+          <div class="snippet-divider"></div>
+          <div class="step-label">Add the Vite plugin</div>
           <div class="snippet" data-copy="vite">
             <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
             <pre set:html={viteSnippet} />
           </div>
+          <div class="snippet-divider"></div>
+          <div class="step-label">Start the bridge</div>
+          <div class="snippet" data-copy="bridge">
+            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
+            <pre set:html={bridgeSnippet} />
+          </div>
         </div>
         <div class="panel" id="panel-script">
+          <div class="step-label">Install</div>
+          <div class="snippet" data-copy="install">
+            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
+            <pre set:html={installSnippet} />
+          </div>
+          <div class="snippet-divider"></div>
+          <div class="step-label">Add a script tag</div>
           <div class="snippet" data-copy="scriptAlways">
             <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
             <pre set:html={scriptAlwaysSnippet} />
@@ -82,6 +107,12 @@ If not using Vite, add this script tag to the HTML to only load on localhost:
           <div class="snippet" data-copy="scriptDev">
             <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
             <pre set:html={scriptDevSnippet} />
+          </div>
+          <div class="snippet-divider"></div>
+          <div class="step-label">Start the bridge</div>
+          <div class="snippet" data-copy="bridge">
+            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
+            <pre set:html={bridgeSnippet} />
           </div>
         </div>
       </div>
@@ -95,12 +126,12 @@ If not using Vite, add this script tag to the HTML to only load on localhost:
       <span class="arrow">&rarr;</span>
       <div class="step">
         <span class="num">2</span>
-        <span class="txt">Copy prompt</span>
+        <span class="txt">Push to agent</span>
       </div>
       <span class="arrow">&rarr;</span>
       <div class="step">
         <span class="num">3</span>
-        <span class="txt">Apply to source with claude</span>
+        <span class="txt">Applied to source</span>
       </div>
     </div>
 
@@ -303,6 +334,16 @@ If not using Vite, add this script tag to the HTML to only load on localhost:
     margin: 14px -22px 20px;
   }
 
+  .step-label {
+    font-family: 'Geist', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #aaa;
+    margin-bottom: 8px;
+  }
+
   .cb-body {
     padding: 20px 22px;
     background: #f8f8f8;
@@ -480,11 +521,11 @@ If not using Vite, add this script tag to the HTML to only load on localhost:
   const copyTexts: Record<string, string> = {
     claude: `Set up flare-dev for visual CSS editing.
 
-If this project uses Vite:
-  npm install -D flare-dev
-  Then add the plugin to vite.config.ts:
-    import flare from "flare-dev/vite"
-    plugins: [flare()]
+npm install -D flare-dev
+
+If this project uses Vite, add the plugin to vite.config.ts:
+  import flare from "flare-dev/vite"
+  plugins: [flare()]
 
 If not using Vite, add this script tag to the HTML to only load on localhost:
   <script>
@@ -494,6 +535,7 @@ If not using Vite, add this script tag to the HTML to only load on localhost:
       document.head.appendChild(s);
     }
   <\/script>`,
+    install: `npm install -D flare-dev`,
     vite: `// vite.config.ts
 import flare from "flare-dev/vite"
 
@@ -508,6 +550,7 @@ export default defineConfig({
     document.head.appendChild(s);
   }
 <\/script>`,
+    bridge: `npx flare-dev bridge`,
   };
 
   document.getElementById('try-btn')?.addEventListener('click', () => {

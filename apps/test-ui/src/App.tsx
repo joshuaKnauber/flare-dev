@@ -111,7 +111,7 @@ export default function App() {
           >
             Luma
           </a>
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-6">
             <a
               href="#features"
               className="text-sm text-[#666] hover:text-[#1a1a1a] transition-colors hidden sm:block"
@@ -132,7 +132,7 @@ export default function App() {
             </a>
             <a
               href="#waitlist"
-              className="text-[13px] font-medium px-5 py-2 bg-[#1a1a1a] text-white rounded-full hover:bg-[#333] transition-colors"
+              className="text-[13px] font-medium px-6 py-2 bg-[#1a1a1a] text-white rounded-full hover:bg-[#333] transition-colors"
             >
               Join Waitlist
             </a>
@@ -222,7 +222,7 @@ export default function App() {
         <div className="grid md:grid-cols-3 gap-6">
           {features.map((f) => (
             <div key={f.title} className="group">
-              <div className="overflow-hidden rounded-xl mb-5">
+              <div className="overflow-hidden rounded-3xl mb-5">
                 <img
                   src={f.img}
                   alt={f.title}
