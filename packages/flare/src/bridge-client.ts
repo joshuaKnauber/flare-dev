@@ -3,9 +3,7 @@ import type { FlareSessionSnapshot } from "./bridge-types";
 const DEFAULT_BRIDGE_URL = "http://127.0.0.1:4318";
 
 interface FlareBridgeConfig {
-  url: string;
-  projectRoot?: string;
-  inboxPath: string;
+  url?: string;
 }
 
 declare global {
@@ -15,34 +13,28 @@ declare global {
 }
 
 function getBridgeConfig() {
+  if (typeof window === "undefined") return { url: DEFAULT_BRIDGE_URL };
+  return {
+    url: window.__FLARE_BRIDGE__?.url ?? DEFAULT_BRIDGE_URL,
+  };
+}
+
+function getCurrentOrigin() {
   if (typeof window === "undefined") return null;
-  const config = window.__FLARE_BRIDGE__;
-  if (!config?.url) return null;
-  return config;
+  return window.location.origin ?? null;
 }
 
 export function getBridgeConnectionInfo() {
   const config = getBridgeConfig();
-  if (!config) {
-    return {
-      configured: false,
-      url: DEFAULT_BRIDGE_URL,
-      projectRoot: null,
-      inboxPath: null,
-    };
-  }
-
   return {
     configured: true,
     url: config.url,
-    projectRoot: config.projectRoot ?? null,
-    inboxPath: config.inboxPath,
+    origin: getCurrentOrigin(),
   };
 }
 
 export async function getBridgeStatus() {
   const config = getBridgeConfig();
-  if (!config) return { available: false };
 
   try {
     const url = new URL("/health", config.url);
@@ -59,7 +51,8 @@ export async function pushSnapshotToAgent(
   snapshot: FlareSessionSnapshot,
 ) {
   const config = getBridgeConfig();
-  if (!config) return { ok: false, inboxPath: null, filePath: null };
+  const origin = getCurrentOrigin();
+  if (!origin) return { ok: false, inboxPath: null, filePath: null };
 
   try {
     const url = new URL("/api/agent/push", config.url);
@@ -67,7 +60,7 @@ export async function pushSnapshotToAgent(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        projectRoot: config.projectRoot,
+        origin,
         snapshot,
       }),
     });

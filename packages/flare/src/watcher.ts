@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoInboxPath } from "./inbox-path.js";
+import { getOriginInboxPath } from "./inbox-path.js";
 
 export interface WatcherOptions {
-  projectRoot?: string;
+  origin: string;
   pollMs?: number;
 }
 
@@ -25,9 +25,8 @@ function writeEvent(event: WatchEvent) {
   process.stdout.write(`${JSON.stringify(event)}\n`);
 }
 
-export function createWatcher(options: WatcherOptions = {}): WatcherInstance {
-  const projectRoot = options.projectRoot ?? process.cwd();
-  const inboxPath = getRepoInboxPath(projectRoot);
+export function createWatcher(options: WatcherOptions): WatcherInstance {
+  const inboxPath = getOriginInboxPath(options.origin);
   const pollMs = options.pollMs ?? 500;
 
   const readPendingFiles = () => {

@@ -19,6 +19,6 @@ export interface FlareSessionSnapshot {
 }
 
 export interface AgentPushRequest {
-  projectRoot: string;
+  origin: string;
   snapshot: FlareSessionSnapshot;
 }

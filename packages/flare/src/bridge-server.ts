@@ -7,7 +7,7 @@ import type {
   AgentPushRequest,
   FlareSessionSnapshot,
 } from "./bridge-types.js";
-import { BRIDGE_TMP_ROOT, getRepoInboxPath } from "./inbox-path.js";
+import { BRIDGE_TMP_ROOT, getOriginInboxPath } from "./inbox-path.js";
 
 export interface BridgeServerOptions {
   host?: string;
@@ -82,7 +82,7 @@ function isAgentPushRequest(value: unknown): value is AgentPushRequest {
   if (!value || typeof value !== "object") return false;
   const request = value as Record<string, unknown>;
   return (
-    typeof request.projectRoot === "string" &&
+    typeof request.origin === "string" &&
     isSnapshot(request.snapshot)
   );
 }
@@ -127,14 +127,14 @@ export function createBridgeServer(
           return;
         }
 
-        const projectRoot = body.projectRoot;
-        const inboxPath = getRepoInboxPath(projectRoot);
+        const origin = body.origin;
+        const inboxPath = getOriginInboxPath(origin);
         mkdirSync(inboxPath, { recursive: true });
         const filePath = join(inboxPath, toTimestampFileName(new Date().toISOString()));
         writeFileSync(
           filePath,
           JSON.stringify({
-            projectRoot,
+            origin,
             snapshot: body.snapshot,
           }, null, 2),
         );

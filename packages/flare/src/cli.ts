@@ -7,7 +7,7 @@ interface CliOptions {
   command: string | null;
   host: string;
   port: number;
-  projectRoot: string;
+  origin: string | null;
 }
 
 function printHelp() {
@@ -15,11 +15,11 @@ function printHelp() {
     [
       "Usage:",
       "  flare-dev bridge [--host 127.0.0.1] [--port 4318]",
-      "  flare-dev watch [--project-root /path/to/repo]",
+      "  flare-dev watch --origin http://localhost:3000",
       "",
       "Commands:",
       "  bridge   Start the local Flare bridge server",
-      "  watch    Wait for pending inbox files for the current repo, print one JSON batch, and exit",
+      "  watch    Wait for pending inbox files for one app origin, print one JSON batch, and exit",
     ].join("\n") + "\n",
   );
 }
@@ -29,7 +29,7 @@ function parseArgs(argv: string[]): CliOptions {
   const command = args.shift() ?? null;
   let host = "127.0.0.1";
   let port = 4318;
-  let projectRoot = process.cwd();
+  let origin: string | null = null;
 
   while (args.length > 0) {
     const current = args.shift();
@@ -42,13 +42,13 @@ function parseArgs(argv: string[]): CliOptions {
       if (raw) port = Number.parseInt(raw, 10);
       continue;
     }
-    if (current === "--project-root") {
-      projectRoot = args.shift() ?? projectRoot;
+    if (current === "--origin") {
+      origin = args.shift() ?? origin;
       continue;
     }
   }
 
-  return { command, host, port, projectRoot };
+  return { command, host, port, origin };
 }
 
 async function main() {
@@ -68,7 +68,13 @@ async function main() {
   }
 
   if (options.command === "watch") {
-    const watcher = createWatcher({ projectRoot: options.projectRoot });
+    if (!options.origin) {
+      process.stderr.write("Missing required flag: --origin\n");
+      printHelp();
+      process.exitCode = 1;
+      return;
+    }
+    const watcher = createWatcher({ origin: options.origin });
     await watcher.start();
     return;
   }

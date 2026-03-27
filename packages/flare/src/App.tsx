@@ -256,15 +256,16 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
   }, [bridgeAvailable, commentChangeCount, handlePush, styleChangeCount]);
 
   const bridgePrompt = [
-    "Flare is a visual CSS editing tool. I make style changes in the browser and Flare writes structured update files for this repo.",
+    "Flare is a visual CSS editing tool. I make style changes in the browser and Flare writes structured update files for this app origin.",
     "",
     "Run this command:",
-    `npx flare-dev watch --project-root "${bridgeInfo.projectRoot ?? ""}"`,
+    `npx flare-dev watch --origin "${bridgeInfo.origin ?? ""}"`,
     "",
-    "It will wait until Flare has one or more pending pushed updates for this repo, then print one JSON object and exit.",
+    "It will wait until Flare has one or more pending pushed updates for this origin, then print one JSON object and exit.",
     "",
     'When it returns a `{"type":"watch.batch"}` object:',
-    "- apply all files in `files` for this repo",
+    `- these files belong to origin ${bridgeInfo.origin ?? ""}`,
+    "- apply all files in `files` in the repo you are currently editing",
     "- each item contains `filePath` and `payload`",
     "- after successfully applying a file, delete that `filePath`",
     "- when done, run the same command again to wait for the next batch",

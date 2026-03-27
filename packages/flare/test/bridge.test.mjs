@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { getRepoInboxPath } from "../dist/inbox-path.js";
+import { getOriginInboxPath } from "../dist/inbox-path.js";
 
-const TEST_PROJECT_ROOT = new URL("../", import.meta.url).pathname.replace(/\/$/, "");
+const TEST_ORIGIN = "http://localhost:4173";
 
 function waitForReady(child) {
   return new Promise((resolve, reject) => {
@@ -79,7 +79,7 @@ test("flare bridge serves health while running", async () => {
   await new Promise((resolve) => child.once("exit", resolve));
 });
 
-test("flare bridge writes pushed snapshots to the repo inbox folder", async () => {
+test("flare bridge writes pushed snapshots to the origin inbox folder", async () => {
   const child = spawn(process.execPath, ["dist/cli.js", "bridge", "--port", "0"], {
     cwd: new URL("../", import.meta.url),
     stdio: ["ignore", "pipe", "pipe"],
@@ -88,14 +88,14 @@ test("flare bridge writes pushed snapshots to the repo inbox folder", async () =
   const port = await waitForReady(child);
 
   const payload = {
-    projectRoot: TEST_PROJECT_ROOT,
+    origin: TEST_ORIGIN,
     snapshot: {
       updatedAt: "2026-03-27T10:00:00.000Z",
       changes: [
         {
           selector: ".hero",
           path: "body > main.hero > h1",
-          source: `${TEST_PROJECT_ROOT}/src/App.tsx:12:4`,
+          source: "src/App.tsx:12:4",
           changes: [
             {
               property: "font-size",
@@ -121,7 +121,7 @@ test("flare bridge writes pushed snapshots to the repo inbox folder", async () =
   assert.ok(pushBody.filePath.startsWith(pushBody.inboxPath));
 
   const written = JSON.parse(readFileSync(pushBody.filePath, "utf8"));
-  assert.equal(written.projectRoot, TEST_PROJECT_ROOT);
+  assert.equal(written.origin, TEST_ORIGIN);
   assert.equal(written.snapshot.updatedAt, payload.snapshot.updatedAt);
   assert.equal(written.snapshot.changes[0].source, payload.snapshot.changes[0].source);
   assert.equal("prompt" in written.snapshot, false);
@@ -139,13 +139,13 @@ test("flare watch returns one batch of pending inbox files and exits", async () 
   });
 
   await waitForReady(bridge);
-  const inboxPath = getRepoInboxPath(TEST_PROJECT_ROOT);
+  const inboxPath = getOriginInboxPath(TEST_ORIGIN);
   rmSync(inboxPath, { recursive: true, force: true });
   mkdirSync(inboxPath, { recursive: true });
 
   const watch = spawn(
     process.execPath,
-    ["dist/cli.js", "watch", "--project-root", TEST_PROJECT_ROOT],
+    ["dist/cli.js", "watch", "--origin", TEST_ORIGIN],
     {
       cwd: new URL("../", import.meta.url),
       stdio: ["ignore", "pipe", "pipe"],
@@ -154,7 +154,7 @@ test("flare watch returns one batch of pending inbox files and exits", async () 
   writeFileSync(
     join(inboxPath, "2026-03-27T10-00-00-000Z.json"),
     JSON.stringify({
-      projectRoot: TEST_PROJECT_ROOT,
+      origin: TEST_ORIGIN,
       snapshot: {
         updatedAt: "2026-03-27T10:00:00.000Z",
         changes: [
@@ -181,7 +181,7 @@ test("flare watch returns one batch of pending inbox files and exits", async () 
   assert.equal(batchEvent.type, "watch.batch");
   assert.equal(batchEvent.inboxPath, inboxPath);
   assert.equal(batchEvent.files.length, 1);
-  assert.equal(batchEvent.files[0].payload.projectRoot, TEST_PROJECT_ROOT);
+  assert.equal(batchEvent.files[0].payload.origin, TEST_ORIGIN);
   assert.equal(batchEvent.files[0].payload.snapshot.updatedAt, "2026-03-27T10:00:00.000Z");
   await new Promise((resolve) => watch.once("exit", resolve));
 
