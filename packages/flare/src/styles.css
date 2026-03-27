@@ -159,6 +159,86 @@
   letter-spacing: -0.02em;
 }
 
+.f-bridge-indicator {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid var(--f-border);
+  background: var(--f-surface-2);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.f-bridge-indicator:hover {
+  border-color: var(--f-border-h);
+  background: var(--f-surface-3);
+}
+
+.f-bridge-indicator:active {
+  transform: scale(0.9);
+}
+
+/* Connected indicator — accent ring on hover */
+.f-bridge-indicator.f-bridge-connected {
+  border-color: rgba(46 212 143 / 0.25);
+}
+
+.f-bridge-indicator.f-bridge-connected:hover {
+  border-color: rgba(46 212 143 / 0.4);
+  box-shadow: 0 0 0 3px rgba(46 212 143 / 0.08);
+}
+
+/* Waiting indicator — warm ring on hover */
+.f-bridge-indicator.f-bridge-waiting {
+  border-color: rgba(255 182 72 / 0.2);
+}
+
+.f-bridge-indicator.f-bridge-waiting:hover {
+  border-color: rgba(255 182 72 / 0.35);
+  box-shadow: 0 0 0 3px rgba(255 182 72 / 0.08);
+}
+
+.f-bridge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--f-text-mute);
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.f-bridge-connected .f-bridge-dot,
+.f-bridge-dot.f-bridge-connected {
+  background: #2ed48f;
+  box-shadow: 0 0 0 3px rgba(46 212 143 / 0.18);
+  animation: f-bridge-pulse-green 2.4s ease-in-out infinite;
+}
+
+.f-bridge-waiting .f-bridge-dot,
+.f-bridge-dot.f-bridge-waiting {
+  background: #ffb648;
+  box-shadow: 0 0 0 3px rgba(255 182 72 / 0.18);
+  animation: f-bridge-pulse-amber 1.6s ease-in-out infinite;
+}
+
+.f-bridge-offline .f-bridge-dot,
+.f-bridge-dot.f-bridge-offline {
+  background: #7e7e86;
+  box-shadow: none;
+}
+
+@keyframes f-bridge-pulse-green {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(46 212 143 / 0.18); }
+  50%      { box-shadow: 0 0 0 5px rgba(46 212 143 / 0.08); }
+}
+
+@keyframes f-bridge-pulse-amber {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(255 182 72 / 0.18); }
+  50%      { box-shadow: 0 0 0 5px rgba(255 182 72 / 0.06); }
+}
+
 .f-topbar-actions {
   display: flex;
   align-items: center;
@@ -237,6 +317,149 @@
 
 .f-settings-item:active {
   transform: scale(0.97);
+}
+
+/* ── Bridge Dialog ─────────────────────────────── */
+.f-bridge-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10 10 12 / 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 52px 14px 14px;
+  z-index: 12;
+  animation: f-backdrop-in 0.18s ease-out both;
+}
+
+@keyframes f-backdrop-in {
+  from { opacity: 0; backdrop-filter: blur(0); }
+  to   { opacity: 1; backdrop-filter: blur(4px); }
+}
+
+.f-bridge-dialog {
+  width: 100%;
+  max-width: 288px;
+  border-radius: var(--f-radius);
+  border: 1px solid var(--f-border-h);
+  background: color-mix(in srgb, var(--f-bg) 92%, #000 8%);
+  box-shadow: 0 24px 48px rgba(0 0 0 / 0.4), 0 8px 16px rgba(0 0 0 / 0.2), 0 0 0 1px rgba(255 255 255 / 0.04);
+  overflow: hidden;
+  animation: f-pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.f-bridge-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--f-border);
+}
+
+.f-bridge-dialog-title {
+  font-family: var(--f-font-label);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--f-text);
+  letter-spacing: -0.01em;
+}
+
+.f-bridge-dialog-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  font-family: var(--f-font-label);
+  font-size: 11px;
+  color: var(--f-text-dim);
+}
+
+.f-bridge-dialog-status .f-bridge-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+}
+
+.f-bridge-dialog-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--f-radius-sm);
+  background: transparent;
+  color: var(--f-text-mute);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s, transform 0.1s;
+}
+
+.f-bridge-dialog-close:hover {
+  background: var(--f-surface-2);
+  color: var(--f-text);
+}
+
+.f-bridge-dialog-close:active {
+  transform: scale(0.9);
+}
+
+.f-bridge-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+}
+
+.f-bridge-dialog-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.f-bridge-dialog-label {
+  font-family: var(--f-font-label);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--f-text-mute);
+}
+
+.f-bridge-dialog-copy {
+  font-family: var(--f-font-label);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--f-text-dim);
+}
+
+.f-bridge-dialog-code {
+  display: block;
+  padding: 9px 10px;
+  border-radius: var(--f-radius-sm);
+  border: 1px solid var(--f-border);
+  background: var(--f-surface);
+  color: var(--f-text);
+  font-family: var(--f-font);
+  font-size: 10.5px;
+  line-height: 1.5;
+  word-break: break-word;
+  box-shadow: var(--f-input-shadow);
+  transition: border-color 0.15s, background 0.15s;
+  cursor: text;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+.f-bridge-dialog-code:hover {
+  border-color: var(--f-border-h);
+  background: var(--f-surface-2);
+}
+
+.f-bridge-dialog-code::selection {
+  background: rgba(255 122 0 / 0.2);
 }
 
 /* ── Inspect Bar ────────────────────────────────── */
@@ -1547,6 +1770,12 @@
 .f-copy-btn:hover {
   opacity: 0.92;
   box-shadow: 0 2px 8px rgba(255 122 0 / 0.35);
+}
+
+.f-copy-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .f-copy-btn:active {

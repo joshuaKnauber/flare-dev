@@ -6,6 +6,7 @@ import {
   formatSourceLocation,
   getElementLabel,
   isFlareElement,
+  serializeElementChange,
 } from "./utils";
 
 // ── Theme ──────────────────────────────────────────
@@ -874,6 +875,20 @@ export function useStyleEditor(selectedEl: Element | null) {
   // Bump to force re-render when allChanges changes
   const [revision, setRevision] = useState(0);
 
+  const ensureEntry = useCallback((el: Element) => {
+    const existing = storeRef.current.get(el);
+    if (existing) return existing;
+
+    const entry = {
+      overrides: {},
+      original: readComputedStyles(el),
+      sourceInfo: sourceCacheRef.current.get(el) ?? null,
+      comment: "",
+    };
+    storeRef.current.set(el, entry);
+    return entry;
+  }, []);
+
   // When element changes, save current and restore/init the new one
   const prevElRef = useRef<Element | null>(null);
   useEffect(() => {
@@ -903,18 +918,12 @@ export function useStyleEditor(selectedEl: Element | null) {
       setOverrides(existing.overrides);
       setCommentState(existing.comment);
     } else {
-      const orig = readComputedStyles(selectedEl);
-      storeRef.current.set(selectedEl, {
-        overrides: {},
-        original: orig,
-        sourceInfo: sourceCacheRef.current.get(selectedEl) ?? null,
-        comment: "",
-      });
-      setOriginal(orig);
+      const entry = ensureEntry(selectedEl);
+      setOriginal(entry.original);
       setOverrides({});
       setCommentState("");
     }
-  }, [selectedEl]);
+  }, [ensureEntry, selectedEl]);
 
   const setElementSourceInfo = useCallback(
     (el: Element, sourceInfo: ElementInfo | null) => {
@@ -940,13 +949,13 @@ export function useStyleEditor(selectedEl: Element | null) {
       setOverrides((prev) => {
         const next = { ...prev, [prop]: value };
         // Sync to persistent store
-        const entry = storeRef.current.get(selectedEl);
-        if (entry) entry.overrides = next;
+        const entry = ensureEntry(selectedEl);
+        entry.overrides = next;
         return next;
       });
       setRevision((r) => r + 1);
     },
-    [selectedEl],
+    [ensureEntry, selectedEl],
   );
 
   const setComment = useCallback(
@@ -954,12 +963,59 @@ export function useStyleEditor(selectedEl: Element | null) {
       if (!selectedEl) return;
       const nextComment = value.trim();
       setCommentState(nextComment);
-      const entry = storeRef.current.get(selectedEl);
-      if (entry) entry.comment = nextComment;
+      const entry = ensureEntry(selectedEl);
+      entry.comment = nextComment;
       setRevision((r) => r + 1);
     },
-    [selectedEl],
+    [ensureEntry, selectedEl],
   );
+
+  const acknowledgeEntries = useCallback((submittedEntries: ElementEntry[]) => {
+    for (const submittedEntry of submittedEntries) {
+      const currentEntry = storeRef.current.get(submittedEntry.el);
+      if (!currentEntry) continue;
+
+      for (const [prop, submittedValue] of Object.entries(submittedEntry.overrides)) {
+        if (currentEntry.overrides[prop] !== submittedValue) continue;
+        currentEntry.original[prop] = submittedValue;
+        delete currentEntry.overrides[prop];
+      }
+
+      if (
+        submittedEntry.comment?.trim() &&
+        currentEntry.comment.trim() === submittedEntry.comment.trim()
+      ) {
+        currentEntry.comment = "";
+      }
+
+      const hasRemainingOverrides = Object.entries(currentEntry.overrides).some(
+        ([prop, value]) => value !== currentEntry.original[prop],
+      );
+
+      if (!hasRemainingOverrides && !currentEntry.comment.trim()) {
+        storeRef.current.delete(submittedEntry.el);
+      }
+    }
+
+    if (selectedEl) {
+      const entry = storeRef.current.get(selectedEl);
+      if (entry) {
+        setOriginal(entry.original);
+        setOverrides(entry.overrides);
+      } else {
+        const nextEntry = ensureEntry(selectedEl);
+        setOriginal(nextEntry.original);
+        setOverrides({});
+      }
+    } else {
+      setOriginal({});
+      setOverrides({});
+    }
+
+    const selectedEntry = selectedEl ? storeRef.current.get(selectedEl) : null;
+    setCommentState(selectedEntry?.comment ?? "");
+    setRevision((r) => r + 1);
+  }, [ensureEntry, selectedEl]);
 
   // Reset only the current element's changes
   const resetCurrent = useCallback(() => {
@@ -1036,7 +1092,26 @@ export function useStyleEditor(selectedEl: Element | null) {
     return count;
   })();
 
+  const totalStyleChangeCount = (() => {
+    void revision;
+    let count = 0;
+    for (const [, { overrides: ov, original: orig }] of storeRef.current.entries()) {
+      count += Object.entries(ov).filter(([p, v]) => v !== orig[p]).length;
+    }
+    return count;
+  })();
+
+  const totalCommentCount = (() => {
+    void revision;
+    let count = 0;
+    for (const [, { comment }] of storeRef.current.entries()) {
+      if (comment.trim()) count += 1;
+    }
+    return count;
+  })();
+
   return {
+    acknowledgeEntries,
     comment,
     getValue,
     setValue,
@@ -1048,6 +1123,8 @@ export function useStyleEditor(selectedEl: Element | null) {
     resetAll,
     getAllChanges,
     totalChangeCount,
+    totalCommentCount,
+    totalStyleChangeCount,
   };
 }
 

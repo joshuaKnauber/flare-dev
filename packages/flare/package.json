@@ -1,6 +1,6 @@
 {
   "name": "flare-dev",
-  "version": "0.1.3",
+  "version": "0.2.0",
   "type": "module",
   "repository": {
     "type": "git",
@@ -12,12 +12,18 @@
       "import": "./dist/vite.mjs"
     }
   },
+  "bin": {
+    "flare-dev": "./dist/cli.js"
+  },
   "files": [
     "dist"
   ],
   "scripts": {
     "dev": "vite build --watch",
-    "build": "tsc -b && vite build && cp vite.mjs vite.d.mts dist/"
+    "build": "tsc -p tsconfig.json --noEmit && vite build && tsc -p tsconfig.node.json && chmod +x dist/cli.js && cp vite.mjs vite.d.mts dist/",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:integration": "npm run build && node --test test/**/*.test.mjs",
+    "test:unit": "vitest run"
   },
   "peerDependencies": {
     "vite": ">=5"
@@ -28,15 +34,18 @@
     }
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^25.2.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "jsdom": "^29.0.1",
     "lucide-react": "^0.564.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "~5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.1.2"
   },
   "dependencies": {
     "element-source": "^0.0.5"

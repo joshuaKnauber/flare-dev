@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2020"],
+    "types": ["node"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": ["src/cli.ts", "src/bridge-server.ts", "src/bridge-types.ts", "src/watcher.ts", "src/inbox-path.ts"],
+  "exclude": []
+}

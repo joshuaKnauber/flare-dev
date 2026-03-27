@@ -23,6 +23,7 @@ import {
   Type,
   Underline,
   WrapText,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -54,6 +55,11 @@ import {
   useTheme,
 } from "./hooks";
 import {
+  getBridgeConnectionInfo,
+  getBridgeStatus,
+  pushSnapshotToAgent,
+} from "./bridge-client";
+import {
   IconCollapse,
   IconCorners,
   IconDashedRect,
@@ -63,7 +69,7 @@ import {
   IconSolidRect,
   IconSun,
 } from "./icons";
-import { buildPrompt } from "./utils";
+import { serializeElementChange } from "./utils";
 
 const ICO = { size: 14, strokeWidth: 1.5 };
 
@@ -167,7 +173,7 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
   const editor = useStyleEditor(selectedEl);
   const sourceInfo = useElementSource(selectedEl);
   const availableFonts = useAvailableFonts();
-  const { setElementSourceInfo } = editor;
+  const { acknowledgeEntries, setElementSourceInfo } = editor;
   const commentKeyRef = useRef(0);
   const prevElRef = useRef(selectedEl);
   if (prevElRef.current !== selectedEl) {
@@ -176,18 +182,105 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
   }
 
   const changeCount = editor.totalChangeCount;
+  const styleChangeCount = editor.totalStyleChangeCount;
+  const commentChangeCount = editor.totalCommentCount;
+  const [bridgeAvailable, setBridgeAvailable] = useState(false);
+  const [bridgeDialogOpen, setBridgeDialogOpen] = useState(false);
+  const [autoPushState, setAutoPushState] = useState<"pushing" | null>(null);
+  const bridgeInfo = getBridgeConnectionInfo();
+  const autoPushInFlightRef = useRef(false);
+  const prevCommentCountRef = useRef(commentChangeCount);
 
   useEffect(() => {
     if (!selectedEl) return;
     setElementSourceInfo(selectedEl, sourceInfo);
   }, [selectedEl, setElementSourceInfo, sourceInfo]);
 
-  const handleCopy = () => {
+  const buildAgentSnapshot = useCallback(() => {
     const entries = editor.getAllChanges();
-    if (entries.length === 0) return;
-    const prompt = buildPrompt(entries);
-    navigator.clipboard.writeText(prompt);
-  };
+    return {
+      entries,
+      snapshot: {
+        updatedAt: new Date().toISOString(),
+        changes: entries.map((entry) => serializeElementChange(entry)),
+      },
+    };
+  }, [editor.getAllChanges]);
+
+  useEffect(() => {
+    let active = true;
+
+    const pollStatus = async () => {
+      const status = await getBridgeStatus();
+      if (!active) return;
+      setBridgeAvailable(status.available);
+    };
+
+    void pollStatus();
+    const interval = window.setInterval(() => {
+      void pollStatus();
+    }, 2000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const handlePush = useCallback(async () => {
+    const { entries, snapshot } = buildAgentSnapshot();
+    if (entries.length === 0) return false;
+
+    const result = await pushSnapshotToAgent(snapshot);
+    if (result.ok) acknowledgeEntries(entries);
+
+    return result.ok;
+  }, [acknowledgeEntries, buildAgentSnapshot]);
+
+  useEffect(() => {
+    const prevCommentCount = prevCommentCountRef.current;
+    prevCommentCountRef.current = commentChangeCount;
+
+    if (!bridgeAvailable || autoPushInFlightRef.current) return;
+    if (styleChangeCount !== 0) return;
+    if (prevCommentCount !== 0 || commentChangeCount !== 1) return;
+
+    autoPushInFlightRef.current = true;
+    setAutoPushState("pushing");
+    void handlePush().finally(() => {
+      window.setTimeout(() => {
+        autoPushInFlightRef.current = false;
+        setAutoPushState(null);
+      }, 800);
+    });
+  }, [bridgeAvailable, commentChangeCount, handlePush, styleChangeCount]);
+
+  const bridgePrompt = [
+    "Flare is a visual CSS editing tool. I make style changes in the browser and Flare writes structured update files for this repo.",
+    "",
+    "Run this command:",
+    `npx flare-dev watch --project-root "${bridgeInfo.projectRoot ?? ""}"`,
+    "",
+    "It will wait until Flare has one or more pending pushed updates for this repo, then print one JSON object and exit.",
+    "",
+    'When it returns a `{"type":"watch.batch"}` object:',
+    "- apply all files in `files` for this repo",
+    "- each item contains `filePath` and `payload`",
+    "- after successfully applying a file, delete that `filePath`",
+    "- when done, run the same command again to wait for the next batch",
+  ].join("\n");
+
+  const bridgeStatus = bridgeAvailable
+      ? {
+          tone: "connected",
+          label: "Bridge running",
+          detail: "Push to Agent is ready.",
+        }
+      : {
+          tone: "offline",
+          label: "Bridge offline",
+          detail: "Start the local bridge to enable agent push.",
+        };
 
   const shellClass = ["f-shell", open ? "f-expanded" : ""]
     .filter(Boolean)
@@ -225,6 +318,15 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
             <div className="f-brand">
               <IconFlare />
               <span>Flare</span>
+              <button
+                className={`f-bridge-indicator f-bridge-${bridgeStatus.tone}`}
+                onClick={() => setBridgeDialogOpen(true)}
+                onPointerDown={(e) => e.stopPropagation()}
+                title={bridgeStatus.label}
+                aria-label={bridgeStatus.label}
+              >
+                <span className="f-bridge-dot" />
+              </button>
             </div>
             <div className="f-topbar-actions">
               <div className="f-settings-wrap" ref={menuRef} onPointerDown={(e) => e.stopPropagation()}>
@@ -263,6 +365,47 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
               </button>
             </div>
           </div>
+
+          {bridgeDialogOpen && (
+            <div className="f-bridge-dialog-backdrop" onClick={() => setBridgeDialogOpen(false)}>
+              <div
+                className="f-bridge-dialog"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <div className="f-bridge-dialog-header">
+                  <div>
+                    <div className="f-bridge-dialog-title">Bridge Connection</div>
+                    <div className="f-bridge-dialog-status">
+                      <span className={`f-bridge-dot f-bridge-${bridgeStatus.tone}`} />
+                      <span>{bridgeStatus.label}</span>
+                    </div>
+                  </div>
+                  <button
+                    className="f-bridge-dialog-close"
+                    onClick={() => setBridgeDialogOpen(false)}
+                    aria-label="Close bridge dialog"
+                  >
+                    <X size={14} strokeWidth={1.5} />
+                  </button>
+                </div>
+
+                <div className="f-bridge-dialog-body">
+                  <p className="f-bridge-dialog-copy">{bridgeStatus.detail}</p>
+
+                  <div className="f-bridge-dialog-section">
+                    <span className="f-bridge-dialog-label">Start the bridge</span>
+                    <code className="f-bridge-dialog-code">npx flare-dev bridge</code>
+                  </div>
+
+                  <div className="f-bridge-dialog-section">
+                    <span className="f-bridge-dialog-label">Prompt for your agent</span>
+                    <code className="f-bridge-dialog-code">{bridgePrompt}</code>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Inspect bar */}
           <div className="f-inspect-bar">
@@ -985,8 +1128,11 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
           {/* Copy prompt bar */}
           <CopyPromptBar
             changeCount={changeCount}
-            onCopy={handleCopy}
+            onPush={handlePush}
             onReset={editor.resetAll}
+            bridgeConnected={bridgeAvailable}
+            externalState={autoPushState}
+            externalProgressMs={800}
           />
         </div>
       )}

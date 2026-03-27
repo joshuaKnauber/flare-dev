@@ -196,6 +196,11 @@ export function ElementComment({
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    setDraft(value);
+    if (!value.trim()) setEditing(true);
+  }, [value]);
+
+  useEffect(() => {
     if (editing) inputRef.current?.focus();
   }, [editing]);
 
@@ -286,82 +291,97 @@ export function ElementComment({
 
 export function CopyPromptBar({
   changeCount,
-  onCopy,
+  onPush,
   onReset,
+  bridgeConnected = false,
+  externalState = null,
+  externalProgressMs = 800,
 }: {
   changeCount: number;
-  onCopy: () => void;
+  onPush?: () => Promise<boolean>;
   onReset: () => void;
+  bridgeConnected?: boolean;
+  externalState?: "pushing" | null;
+  externalProgressMs?: number;
 }) {
-  const [state, setState] = useState<"idle" | "countdown">("idle");
-  const [seconds, setSeconds] = useState(5);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [state, setState] = useState<"idle" | "countdown" | "pushing" | "applied">("idle");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimer = () => {
     if (timerRef.current) {
-      clearInterval(timerRef.current);
+      clearTimeout(timerRef.current);
       timerRef.current = null;
     }
   };
 
-  const handleCopy = () => {
-    onCopy();
-    setState("countdown");
-    setSeconds(5);
+  const startAppliedState = (durationMs = 1200) => {
+    setState("applied");
     clearTimer();
-    const start = Date.now();
-    timerRef.current = setInterval(() => {
-      const elapsed = (Date.now() - start) / 1000;
-      const remaining = Math.ceil(5 - elapsed);
-      if (remaining <= 0) {
-        clearTimer();
-        setState("idle");
-        onReset();
-      } else {
-        setSeconds(remaining);
-      }
-    }, 100);
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      setState("idle");
+    }, durationMs);
   };
 
-  const handleCancel = () => {
-    clearTimer();
-    setState("idle");
+  const handlePush = async () => {
+    if (!onPush) return;
+    setState("pushing");
+    const ok = await onPush();
+    if (!ok) {
+      setState("idle");
+      return;
+    }
+    startAppliedState();
   };
 
   useEffect(() => clearTimer, []);
 
-  if (changeCount === 0) return null;
+  const effectiveState = externalState ?? state;
+
+  if (changeCount === 0 && !externalState && state === "idle") return null;
 
   return (
     <div
-      className={`f-copy-bar${state === "countdown" ? " f-copy-bar-countdown" : ""}`}
+      className={`f-copy-bar${
+        effectiveState === "applied"
+          ? " f-copy-bar-countdown"
+          : ""
+      }`}
     >
-      {state === "countdown" && <div className="f-copy-progress" />}
+      {externalState === "pushing" && (
+        <div
+          className="f-copy-progress"
+          style={{ animationDuration: `${externalProgressMs}ms` }}
+        />
+      )}
+      {effectiveState === "applied" && (
+        <div
+          className="f-copy-progress"
+          style={{ animationDuration: "1200ms" }}
+        />
+      )}
       <div className="f-copy-bar-inner">
-        {state === "idle" ? (
+        {effectiveState === "idle" ? (
           <>
             <span className="f-changes-count">
               {changeCount} {changeCount === 1 ? "update" : "updates"}
             </span>
             <div className="f-copy-bar-actions">
-              <button className="f-reset-btn" onClick={onReset}>
-                Reset
-              </button>
-              <button className="f-copy-btn" onClick={handleCopy}>
-                Copy Prompt
+              <button className="f-reset-btn" onClick={onReset}>Reset</button>
+              <button
+                className="f-copy-btn"
+                onClick={handlePush}
+                disabled={!bridgeConnected}
+              >
+                Push to Agent
               </button>
             </div>
           </>
-        ) : (
-          <>
-            <span className="f-changes-count">
-              Copied! Resetting changes in {seconds}s…
-            </span>
-            <button className="f-cancel-btn" onClick={handleCancel}>
-              Cancel
-            </button>
-          </>
-        )}
+        ) : effectiveState === "pushing" ? (
+          <span className="f-changes-count">Applying changes…</span>
+        ) : effectiveState === "applied" ? (
+          <span className="f-changes-count">Applied</span>
+        ) : null}
       </div>
     </div>
   );

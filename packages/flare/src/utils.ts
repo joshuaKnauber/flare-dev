@@ -1,4 +1,5 @@
 import type { ElementInfo, ElementSourceInfo } from "element-source";
+import type { FlareElementChange } from "./bridge-types";
 
 export interface ElementEntry {
   el: Element;
@@ -146,6 +147,27 @@ export function formatSourceLocation(frame: ElementSourceInfo | null | undefined
       ? `:${frame.lineNumber}${frame.columnNumber != null ? `:${frame.columnNumber}` : ""}`
       : "";
   return `${frame.filePath}${line}`;
+}
+
+export function serializeElementChange(entry: ElementEntry): FlareElementChange {
+  const { el, overrides, original, sourceInfo } = entry;
+  const comment = entry.comment?.trim() ?? "";
+  const actualChanges = Object.entries(overrides).filter(
+    ([prop, val]) => val !== original[prop],
+  );
+
+  return {
+    selector: getCssSelector(el),
+    path: sourceInfo?.source ? getPathSuffix(el, 3) : getAncestorPath(el, 4),
+    textSnippet: getTextSnippet(el, 80) || undefined,
+    comment: comment || undefined,
+    source: sourceInfo?.source ? formatSourceLocation(sourceInfo.source) : undefined,
+    changes: actualChanges.map(([prop, val]) => ({
+      property: toKebab(prop),
+      before: humanizeValue(original[prop] || "unset"),
+      after: humanizeValue(val),
+    })),
+  };
 }
 
 /** Build a compact description for one element's changes */
