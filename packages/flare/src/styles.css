@@ -1915,11 +1915,12 @@
 /* ── Canvas viewport (inset, rounded) ────────────── */
 .f-canvas {
   flex: 1;
+  min-width: 0;
   margin: 12px 0 12px 12px;
   border-radius: 10px;
   border: 1px solid var(--f-border);
   background: #0e0e11;
-  overflow: hidden;
+  overflow: clip;
   cursor: default;
   position: relative;
 }
@@ -1959,6 +1960,9 @@
   position: absolute;
   top: 0;
   left: 0;
+  width: 0;
+  height: 0;
+  overflow: visible;
   transform-origin: 0 0;
   will-change: transform;
 }
