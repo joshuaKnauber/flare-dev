@@ -3,6 +3,7 @@ import {
   EyeOff,
   ExternalLink,
   Frame,
+  Minimize2,
   SquareMousePointer,
   X,
 } from "lucide-react";
@@ -324,6 +325,14 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
                   </div>
                 )}
               </div>
+              <button
+                className="f-settings-btn"
+                onClick={handleClose}
+                onPointerDown={(e) => e.stopPropagation()}
+                title="Minimize"
+              >
+                <Minimize2 size={14} strokeWidth={1.5} />
+              </button>
               <button
                 className={`f-canvas-mode-btn${canvasMode ? " f-active" : ""}`}
                 onClick={toggleCanvas}
