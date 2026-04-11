@@ -1991,6 +1991,124 @@
 }
 
 
+/* ── Variant frames ──────────────────────────────── */
+.f-canvas-frame.f-frame-variant {
+  box-shadow:
+    0 8px 24px rgba(0 0 0 / 0.1),
+    0 0 0 1px rgba(168 85 247 / 0.2);
+}
+
+.f-canvas-frame.f-frame-variant .f-canvas-frame-label {
+  color: #a855f7;
+}
+
+.f-canvas-frame.f-frame-variant.f-frame-active {
+  outline-color: #a855f7;
+}
+
+/* ── Variant dismiss button ───────────────────────── */
+.f-canvas-frame-dismiss {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  padding-bottom: calc(6px * var(--f-inv-zoom, 1));
+  border: none;
+  background: transparent;
+  color: rgba(168 85 247 / 0.5);
+  font-family: var(--f-font-label);
+  font-size: calc(11px * var(--f-inv-zoom, 1));
+  font-weight: 500;
+  cursor: pointer;
+  pointer-events: auto;
+  transform-origin: right bottom;
+  transition: color 0.12s;
+}
+
+.f-canvas-frame-dismiss:hover {
+  color: #a855f7;
+}
+
+.f-canvas-frame-dismiss:active {
+  opacity: 0.7;
+}
+
+/* ── Variant choose button ────────────────────────── */
+.f-canvas-frame-choose {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  margin: calc(10px * var(--f-inv-zoom, 1));
+  padding: calc(6px * var(--f-inv-zoom, 1)) calc(14px * var(--f-inv-zoom, 1));
+  border: none;
+  border-radius: calc(6px * var(--f-inv-zoom, 1));
+  background: #a855f7;
+  color: #fff;
+  font-family: var(--f-font-label);
+  font-size: calc(12px * var(--f-inv-zoom, 1));
+  font-weight: 500;
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 3;
+  transition: opacity 0.12s;
+  box-shadow: 0 2px 8px rgba(168 85 247 / 0.2);
+}
+
+.f-canvas-frame-choose:hover {
+  opacity: 0.9;
+}
+
+.f-canvas-frame-choose:active {
+  opacity: 0.7;
+}
+
+/* ── Variant group container ─────────────────────── */
+.f-variant-group {
+  position: absolute;
+  border: calc(2px * var(--f-inv-zoom, 1)) dashed rgba(168 85 247 / 0.35);
+  border-radius: calc(12px * var(--f-inv-zoom, 1));
+  pointer-events: none;
+}
+
+/* ── Loading skeleton ────────────────────────────── */
+.f-frame-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: var(--f-bg);
+  overflow: hidden;
+}
+
+.f-frame-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255 255 255 / 0.04) 50%,
+    transparent 100%
+  );
+  animation: f-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+:host(.f-light) .f-frame-skeleton {
+  background: #f1f1f4;
+}
+
+:host(.f-light) .f-frame-skeleton::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0 0 0 / 0.04) 50%,
+    transparent 100%
+  );
+}
+
+@keyframes f-skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
 /* ── Inspecting state — all iframes interactive ──── */
 .f-canvas.f-canvas-inspecting .f-canvas-iframe {
   pointer-events: auto;
@@ -2007,6 +2125,56 @@
 
 .f-canvas.f-canvas-commenting {
   cursor: crosshair;
+}
+
+/* ── Variant mode ────────────────────────────────── */
+.f-canvas.f-canvas-variant-mode .f-canvas-iframe {
+  pointer-events: auto;
+}
+
+.f-canvas.f-canvas-variant-mode {
+  cursor: crosshair;
+}
+
+/* ── Variant popover ─────────────────────────────── */
+.f-variant-popover {
+  position: fixed;
+  z-index: 2147483647;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: f-pop-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.f-variant-count {
+  display: flex;
+  gap: 4px;
+}
+
+.f-variant-count-btn {
+  flex: 1;
+  height: 28px;
+  border: 1px solid var(--f-border);
+  border-radius: var(--f-radius-sm);
+  background: var(--f-bg);
+  color: var(--f-text-dim);
+  font-family: var(--f-font-label);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.f-variant-count-btn:hover {
+  background: var(--f-surface-2);
+  color: var(--f-text);
+}
+
+.f-variant-count-btn.active {
+  background: #a855f7;
+  border-color: #a855f7;
+  color: #fff;
 }
 
 /* ── Comment pins ────────────────────────────────── */
@@ -2171,38 +2339,55 @@
 /* ── Frame duplicate button ───────────────────────── */
 .f-canvas-frame-dup {
   position: absolute;
-  top: 0;
-  left: 100%;
-  margin-left: calc(12px * var(--f-inv-zoom, 1));
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--f-border);
-  border-radius: var(--f-radius-sm);
-  background: var(--f-bg);
-  color: var(--f-text-dim);
-  display: grid;
-  place-items: center;
+  bottom: 100%;
+  right: 0;
+  padding-bottom: calc(6px * var(--f-inv-zoom, 1));
+  border: none;
+  background: transparent;
+  color: var(--f-text-mute);
+  font-family: var(--f-font-label);
+  font-size: calc(11px * var(--f-inv-zoom, 1));
+  font-weight: 500;
   cursor: pointer;
   pointer-events: auto;
-  transform: scale(var(--f-inv-zoom, 1));
-  transform-origin: left top;
-  opacity: 0;
-  transition: opacity 0.15s, background 0.12s, color 0.12s, border-color 0.12s;
-  box-shadow: 0 2px 8px rgba(0 0 0 / 0.1), 0 0 0 1px rgba(255 255 255 / 0.04);
-}
-
-.f-canvas-frame:hover .f-canvas-frame-dup {
-  opacity: 1;
+  transform-origin: right bottom;
+  transition: color 0.12s;
 }
 
 .f-canvas-frame-dup:hover {
-  background: var(--f-surface-2);
   color: var(--f-text);
-  border-color: var(--f-border-h);
 }
 
 .f-canvas-frame-dup:active {
-  transform: scale(var(--f-inv-zoom, 1)) scale(0.9);
+  opacity: 0.7;
+}
+
+.f-canvas-frame-delete {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-right: calc(70px * var(--f-inv-zoom, 1));
+  padding-bottom: calc(6px * var(--f-inv-zoom, 1));
+  display: flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--f-text-mute);
+  font-family: var(--f-font-label);
+  font-size: calc(11px * var(--f-inv-zoom, 1));
+  font-weight: 500;
+  cursor: pointer;
+  pointer-events: auto;
+  transform-origin: right bottom;
+  transition: color 0.12s;
+}
+
+.f-canvas-frame-delete:hover {
+  color: #ef4444;
+}
+
+.f-canvas-frame-delete:active {
+  opacity: 0.7;
 }
 
 /* ── Frame push button ────────────────────────────── */

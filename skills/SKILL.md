@@ -200,6 +200,31 @@ The ideal workflow is a loop:
 
 The user's dev server will hot-reload with your changes, and they'll see the results immediately in the browser. They may then push more changes — the watcher picks those up in the next iteration.
 
+### Variant requests (canvas mode)
+
+When the comment starts with `[VARIANT REQUEST]`, the user wants multiple alternative versions of an element. The comment includes how many variants to generate, a prompt describing the direction, and a request ID.
+
+For each variant, send a separate response with the `variantRequestId` field set:
+
+```bash
+curl -X POST http://127.0.0.1:4318/api/agent/respond \
+  -H "Content-Type: application/json" \
+  -d '{
+    "origin": "http://localhost:5173",
+    "selector": "h1.hero-title",
+    "outerHTML": "<h1 class=\"hero-title\">Variant 1 text</h1>",
+    "variantRequestId": "variant-1"
+  }'
+```
+
+Each response creates a new frame on the canvas below the source, so the user can compare all variants side-by-side. Generate the requested number of variants, each as a separate POST. Be creative — each variant should take a meaningfully different approach to the prompt.
+
+Do NOT modify source files for variant requests. Only respond via the bridge.
+
+## Design quality
+
+When generating variants or applying content comments, check if you have a design-related skill available (e.g., `frontend-design`). If so, load it to inform your design decisions — it will help you produce higher quality, more distinctive results rather than generic alternatives.
+
 ## Tips
 
 - When multiple elements are changed in one batch, apply them all before moving to the next batch. They often relate to each other (e.g., a heading size change + spacing adjustment).

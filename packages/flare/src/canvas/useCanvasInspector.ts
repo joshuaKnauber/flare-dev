@@ -48,6 +48,7 @@ export function useCanvasInspector(
     const cleanups: (() => void)[] = [];
 
     for (const frame of frames) {
+      if (frame.isVariant) continue;
       const frameEl = canvas.querySelector<HTMLElement>(
         `[data-frame-id="${frame.id}"]`,
       );

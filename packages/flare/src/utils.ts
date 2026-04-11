@@ -47,10 +47,10 @@ export function isFlareElement(el: Element) {
 
 export function getCssSelector(el: Element): string {
   const tag = el.tagName.toLowerCase();
-  if (el.id) return `#${el.id}`;
+  if (el.id) return `#${CSS.escape(el.id)}`;
   if (el.className && typeof el.className === "string") {
     const cls = el.className.trim().split(/\s+/);
-    return cls.length > 0 ? `.${cls[0]}` : tag;
+    return cls.length > 0 ? `${tag}.${CSS.escape(cls[0])}` : tag;
   }
   return tag;
 }

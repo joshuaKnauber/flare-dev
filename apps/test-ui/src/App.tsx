@@ -151,7 +151,7 @@ export default function App() {
               Light that
               <br />
               <em className="font-[Playfair_Display,Georgia,serif]">
-                gets
+                understands
               </em>{" "}
               you.
             </h1>

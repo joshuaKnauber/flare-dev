@@ -5,6 +5,7 @@ import {
   ExternalLink,
   Maximize,
   MessageSquare,
+  Split,
   SquareMousePointer,
   X,
 } from "lucide-react";
@@ -17,9 +18,10 @@ import {
 } from "../components";
 import { useElementSource, useStyleEditor, useTheme } from "../hooks";
 import { getBridgeStatus, pollAgentResponses, pushSnapshotToAgent } from "../bridge-client";
-import { serializeElementChange } from "../utils";
+import { getCssSelector, serializeElementChange } from "../utils";
 import type { ElementEntry } from "../utils";
 import { useCanvasComments, type PendingComment, type CanvasComment } from "./useCanvasComments";
+import { useCanvasVariants, type VariantTarget } from "./useCanvasVariants";
 import { type ColumnGuide, defaultGuide, GuideOverlay, GuideSettings } from "./guides";
 import { useCanvasInspector } from "./useCanvasInspector";
 import { useCanvasPanZoom, type CanvasViewport } from "./useCanvasPanZoom";
@@ -37,6 +39,10 @@ export interface FrameState {
   height: number;
   x: number;
   y: number;
+  isVariant?: boolean;
+  variantRequestId?: string;
+  variantIndex?: number;
+  loading?: boolean;
 }
 
 let _nextId = 0;
@@ -135,6 +141,15 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
     updateCommentStatus,
   } = useCanvasComments(canvasRef, viewportRef, frames);
 
+  const {
+    variantMode,
+    target: variantTarget,
+    startVariantMode,
+    stopVariantMode,
+    cancelTarget: cancelVariantTarget,
+    submitVariant: rawSubmitVariant,
+  } = useCanvasVariants(canvasRef, viewportRef, frames);
+
   // When inspector selects an element, also activate its frame
   useEffect(() => {
     if (selectedFrameId) setActiveFrameId(selectedFrameId);
@@ -180,16 +195,109 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
       if (!canvas) return;
 
       for (const resp of responses) {
+        // Variant response → find the placeholder frame and apply
+        if (resp.variantRequestId) {
+          const reqId = resp.variantRequestId;
+          // Find the first loading placeholder for this request
+          const placeholder = framesRef.current.find(
+            (f) => f.variantRequestId === reqId && f.loading,
+          );
+          if (placeholder) {
+            // Apply the outerHTML after the iframe loads
+            const applyToFrame = () => {
+              const frameEl = canvas.querySelector<HTMLElement>(
+                `[data-frame-id="${placeholder.id}"]`,
+              );
+              const iframe = frameEl?.querySelector("iframe") as HTMLIFrameElement | null;
+              if (!iframe) return;
+              const apply = () => {
+                let success = false;
+                let error = "";
+                try {
+                  const doc = iframe.contentDocument;
+                  if (!doc) { error = "No contentDocument"; return; }
+                  let el: Element | null = null;
+                  try { el = doc.querySelector(resp.selector); } catch {}
+                  if (!el) {
+                    try {
+                      const escaped = resp.selector.replace(
+                        /\.([^.#\s]+)/g, (_, cls: string) => `.${CSS.escape(cls)}`,
+                      );
+                      el = doc.querySelector(escaped);
+                    } catch {}
+                  }
+                  if (el) {
+                    el.outerHTML = resp.outerHTML;
+                    success = true;
+                  } else {
+                    error = `Element not found: ${resp.selector}`;
+                  }
+                } catch (err) {
+                  error = err instanceof Error ? err.message : String(err);
+                }
+                // Mark as done loading
+                setFrames((prev) =>
+                  prev.map((f) =>
+                    f.id === placeholder.id ? { ...f, loading: !success } : f,
+                  ),
+                );
+                // Retry on failure
+                if (!success) {
+                  const retrySnapshot = {
+                    updatedAt: new Date().toISOString(),
+                    changes: [{
+                      selector: resp.selector,
+                      path: resp.selector,
+                      textSnippet: "",
+                      comment: [
+                        `[VARIANT RETRY] Previous variant response failed to apply: ${error}`,
+                        `Request ID: ${reqId}`,
+                        `Selector used: ${resp.selector}`,
+                        ``,
+                        `Original outerHTML that failed:`,
+                        resp.outerHTML,
+                        ``,
+                        `Please respond again with a corrected selector and outerHTML via POST /api/agent/respond with variantRequestId: "${reqId}"`,
+                      ].join("\n"),
+                      changes: [],
+                    }],
+                  };
+                  void pushSnapshotToAgent(retrySnapshot);
+                }
+              };
+              if (iframe.contentDocument?.readyState === "complete") {
+                apply();
+              } else {
+                iframe.addEventListener("load", apply, { once: true });
+              }
+            };
+            setTimeout(applyToFrame, 100);
+          }
+          continue;
+        }
+
+        // Find the matching comment to determine which frame to target
+        const match = comments.find((c) => c.selector === resp.selector && c.status === "pending");
         let applied = false;
         let error = "";
-        const iframes = canvas.querySelectorAll<HTMLIFrameElement>(".f-canvas-iframe");
 
-        for (const iframe of iframes) {
+        // Target only the specific frame's iframe, not all iframes
+        const targetFrameId = match?.frameId;
+        const targetFrameEl = targetFrameId
+          ? canvas.querySelector<HTMLElement>(`[data-frame-id="${targetFrameId}"]`)
+          : null;
+        const targetIframe = targetFrameEl
+          ? (targetFrameEl.querySelector("iframe") as HTMLIFrameElement | null)
+          : null;
+        const iframesToCheck = targetIframe
+          ? [targetIframe]
+          : Array.from(canvas.querySelectorAll<HTMLIFrameElement>(".f-canvas-iframe"));
+
+        for (const iframe of iframesToCheck) {
           try {
             const doc = iframe.contentDocument;
             if (!doc) continue;
 
-            // Try selector as-is, then with escaped class names (Tailwind brackets)
             let el: Element | null = null;
             try {
               el = doc.querySelector(resp.selector);
@@ -207,8 +315,6 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
               const originalHTML = el.outerHTML;
               el.outerHTML = resp.outerHTML;
               applied = true;
-              // Mark matching comment as applied + track the content change
-              const match = comments.find((c) => c.selector === resp.selector);
               if (match) {
                 updateCommentStatus(match.id, "applied");
                 setContentChanges((prev) => [
@@ -329,13 +435,79 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
     [rawSubmitComment, pushComment],
   );
 
+  // ── Variant submission ───────────────────────────
+  const handleSubmitVariant = useCallback(
+    (prompt: string, count: number) => {
+      const req = rawSubmitVariant(prompt, count);
+      if (!req) return;
+
+      // Find the source frame to position variants below it
+      const sourceFrame = framesRef.current.find((f) => f.id === req.frameId);
+      if (!sourceFrame) return;
+
+      // Remove any existing variants first
+      setFrames((prev) => prev.filter((f) => !f.isVariant));
+
+      // Create placeholder frames (loading skeletons) stacked vertically
+      const VARIANT_GAP = 40;
+      const VARIANT_TOP_GAP = 120;
+      const VARIANT_PAD = 30; // padding inside the dashed container
+      const placeholders: FrameState[] = [];
+      for (let i = 0; i < count; i++) {
+        placeholders.push({
+          id: `variant-${req.id}-${i}`,
+          url: sourceFrame.url,
+          width: sourceFrame.width,
+          height: sourceFrame.height,
+          x: sourceFrame.x,
+          y: sourceFrame.y + sourceFrame.height + VARIANT_TOP_GAP + VARIANT_PAD + i * (sourceFrame.height + VARIANT_GAP),
+          isVariant: true,
+          variantRequestId: req.id,
+          variantIndex: i,
+          loading: true,
+        });
+      }
+      setFrames((prev) => [...prev, ...placeholders]);
+
+      // Stop variant mode
+      stopVariantMode();
+
+      // Push variant request to bridge
+      const snapshot = {
+        updatedAt: new Date().toISOString(),
+        changes: [
+          {
+            selector: req.selector,
+            path: req.selector,
+            textSnippet: "",
+            comment: [
+              `[VARIANT REQUEST] Generate ${req.count} variant(s) of this element.`,
+              `Prompt: ${req.prompt}`,
+              `Request ID: ${req.id}`,
+              ``,
+              `Current element HTML:`,
+              req.outerHTML,
+              ``,
+              `Respond with ${req.count} separate POST requests to /api/agent/respond, each with:`,
+              `{ "origin": "<origin>", "selector": "${req.selector}", "outerHTML": "<modified html>", "variantRequestId": "${req.id}" }`,
+            ].join("\n"),
+            changes: [],
+          },
+        ],
+      };
+      void pushSnapshotToAgent(snapshot);
+    },
+    [rawSubmitVariant, stopVariantMode],
+  );
+
   // Toggle inspecting/commenting class on canvas for pointer-events + cursor
   useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
     el.classList.toggle("f-canvas-inspecting", inspecting);
     el.classList.toggle("f-canvas-commenting", commenting);
-  }, [inspecting, commenting, canvasRef]);
+    el.classList.toggle("f-canvas-variant-mode", variantMode);
+  }, [inspecting, commenting, variantMode, canvasRef]);
 
   // ── Close with exit transition ───────────────────
   const handleClose = useCallback(() => {
@@ -352,16 +524,139 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
   }, [onClose]);
 
   // ── Duplicate ─────────────────────────────────────
+  const deleteFrame = useCallback((frameId: string) => {
+    const all = framesRef.current;
+    const mainFrames = all.filter((f) => !f.isVariant);
+    if (mainFrames.length <= 1) return;
+    const deleted = all.find((f) => f.id === frameId);
+    if (!deleted || deleted.isVariant) return;
+    // Remove the frame and its variants
+    const remaining = all.filter(
+      (f) => f.id !== frameId && f.variantRequestId !== frameId,
+    );
+    // Shift frames that were to the right of the deleted one
+    const shifted = remaining.map((f) => {
+      if (!f.isVariant && f.y === deleted.y && f.x > deleted.x) {
+        return { ...f, x: f.x - deleted.width - FRAME_GAP };
+      }
+      return f;
+    });
+    setFrames(shifted);
+    if (activeFrameId === frameId) {
+      setActiveFrameId(null);
+      selectElement(null);
+    }
+  }, [activeFrameId, selectElement]);
+
+  const chooseVariant = useCallback((variantFrameId: string) => {
+    const all = framesRef.current;
+    const variant = all.find((f) => f.id === variantFrameId);
+    if (!variant || !variant.isVariant || !variant.variantRequestId) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Find the variant's iframe and the source frame's iframe
+    const variantEl = canvas.querySelector<HTMLElement>(`[data-frame-id="${variant.id}"]`);
+    const variantIframe = variantEl?.querySelector("iframe") as HTMLIFrameElement | null;
+
+    // Find source frame — a non-variant frame (the one the variants were generated from)
+    // Use the first non-variant frame at the expected position
+    const reqId = variant.variantRequestId;
+    const sourceFrame = all.find((f) => !f.isVariant);
+    if (!sourceFrame) return;
+    const sourceEl = canvas.querySelector<HTMLElement>(`[data-frame-id="${sourceFrame.id}"]`);
+    const sourceIframe = sourceEl?.querySelector("iframe") as HTMLIFrameElement | null;
+
+    if (variantIframe?.contentDocument && sourceIframe?.contentDocument) {
+      // Copy the variant's full body HTML to the source frame
+      const variantBody = variantIframe.contentDocument.body;
+      const sourceBody = sourceIframe.contentDocument.body;
+      sourceBody.innerHTML = variantBody.innerHTML;
+
+      // Track as a content change for pushing later
+      setContentChanges((prev) => [
+        ...prev,
+        {
+          frameId: sourceFrame.id,
+          selector: "body",
+          originalHTML: "",
+          newHTML: sourceBody.innerHTML,
+          comment: `Applied variant ${(variant.variantIndex ?? 0) + 1}`,
+        },
+      ]);
+    }
+
+    // Remove all variants in this group
+    setFrames((prev) => prev.filter((f) => f.variantRequestId !== reqId));
+  }, [canvasRef]);
+
   const duplicateFrame = useCallback((frameId: string) => {
     const frame = framesRef.current.find((f) => f.id === frameId);
     if (!frame) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Place to the right of the rightmost frame at the same y level
+    const sameRow = framesRef.current.filter(
+      (f) => !f.isVariant && Math.abs(f.y - frame.y) < 10,
+    );
+    const rightEdge = Math.max(...sameRow.map((f) => f.x + f.width));
+    const dupId = `frame-${++_nextId}`;
     const dup: FrameState = {
       ...frame,
-      id: `frame-${++_nextId}`,
-      x: frame.x + frame.width + FRAME_GAP,
+      id: dupId,
+      x: rightEdge + FRAME_GAP,
     };
     setFrames((prev) => [...prev, dup]);
-  }, []);
+
+    // Capture source body HTML (includes inline style changes + DOM mods)
+    const sourceEl = canvas.querySelector<HTMLElement>(`[data-frame-id="${frameId}"]`);
+    const sourceIframe = sourceEl?.querySelector("iframe") as HTMLIFrameElement | null;
+    const sourceBodyHTML = sourceIframe?.contentDocument?.body?.innerHTML;
+
+    // Copy content changes + convert style editor changes to content changes
+    const styleEntries = getFrameChanges(frameId);
+    const styleAsContent = styleEntries.map((entry) => {
+      const changes = Object.entries(entry.overrides)
+        .filter(([p, v]) => v !== entry.original[p])
+        .map(([p, v]) => `${p}: ${entry.original[p]} → ${v}`)
+        .join("; ");
+      return {
+        frameId: dupId,
+        selector: getCssSelector(entry.el),
+        originalHTML: "",
+        newHTML: "",
+        comment: `Style changes: ${changes}`,
+      };
+    });
+    setContentChanges((prev) => [
+      ...prev,
+      ...prev
+        .filter((c) => c.frameId === frameId)
+        .map((c) => ({ ...c, frameId: dupId })),
+      ...styleAsContent,
+    ]);
+
+    if (!sourceBodyHTML) return;
+
+    // After the new iframe loads naturally, replace body content
+    setTimeout(() => {
+      const dupEl = canvas.querySelector<HTMLElement>(`[data-frame-id="${dupId}"]`);
+      const dupIframe = dupEl?.querySelector("iframe") as HTMLIFrameElement | null;
+      if (!dupIframe) return;
+      const apply = () => {
+        try {
+          const doc = dupIframe.contentDocument;
+          if (doc) doc.body.innerHTML = sourceBodyHTML;
+        } catch {}
+      };
+      if (dupIframe.contentDocument?.readyState === "complete") {
+        apply();
+      } else {
+        dupIframe.addEventListener("load", apply, { once: true });
+      }
+    }, 50);
+  }, [canvasRef]);
 
   const duplicateSelection = useCallback(() => {
     // Duplicate the frame containing the selected element, or all frames
@@ -408,17 +703,24 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
         if (iframe) iframe.style.pointerEvents = "auto";
         activeIframeRef.current = iframe;
         setActiveFrameId(frameEl.dataset.frameId!);
+        selectElement(null);
         return;
       }
 
       if (!frameEl && !spaceRef.current) {
         const isControl = t.closest(".f-canvas-hud, .f-canvas-topright");
         if (!isControl) {
+          // Cancel any active tool mode
+          stopInspecting();
+          stopCommenting();
+          stopVariantMode();
+
           if (activeIframeRef.current) {
             activeIframeRef.current.style.pointerEvents = "";
             activeIframeRef.current = null;
           }
           setActiveFrameId(null);
+          selectElement(null);
         }
       }
 
@@ -439,6 +741,13 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
     return () => cancelAnimationFrame(id);
   }, []);
 
+  // Lock body scroll while canvas is open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   // ── Keyboard ─────────────────────────────────────
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -450,7 +759,11 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
         canvasRef.current?.classList.add("f-canvas-space");
       }
       if (e.key === "Escape") {
-        if (pendingComment) {
+        if (variantTarget) {
+          cancelVariantTarget();
+        } else if (variantMode) {
+          stopVariantMode();
+        } else if (pendingComment) {
           cancelPending();
         } else if (commenting) {
           stopCommenting();
@@ -460,8 +773,6 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
           selectElement(null);
         } else if (activeFrameId) {
           setActiveFrameId(null);
-        } else {
-          handleClose();
         }
       }
       if ((e.metaKey || e.ctrlKey) && e.key === "d") {
@@ -513,7 +824,12 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
             <div
               key={frame.id}
               data-frame-id={frame.id}
-              className={`f-canvas-frame${activeFrameId === frame.id ? " f-frame-active" : ""}`}
+              className={[
+                "f-canvas-frame",
+                activeFrameId === frame.id && "f-frame-active",
+                frame.isVariant && "f-frame-variant",
+                frame.loading && "f-frame-loading",
+              ].filter(Boolean).join(" ")}
               style={{
                 left: frame.x,
                 top: frame.y,
@@ -530,15 +846,16 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
                   setActiveFrameId(frame.id);
                 }}
               >
-                {window.location.pathname} / {frame.width}&times;{frame.height}
+                {frame.isVariant ? `Variant ${(frame.variantIndex ?? 0) + 1}` : window.location.pathname} / {frame.width}&times;{frame.height}
               </div>
+              {frame.loading && <div className="f-frame-skeleton" />}
               <div className="f-canvas-frame-content">
                 <iframe
                   src={frame.url}
                   className="f-canvas-iframe"
                   title="Page preview"
                 />
-                {guidesVisible &&
+                {!frame.isVariant && guidesVisible &&
                   guides.map((guide, gi) => (
                     <GuideOverlay
                       key={gi}
@@ -547,31 +864,101 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
                       frameHeight={frame.height}
                     />
                   ))}
-                {comments
-                  .filter((c) => c.frameId === frame.id)
-                  .map((c, ci) => (
-                    <CommentPin key={c.id} comment={c} index={ci + 1} />
-                  ))}
+                {!frame.isVariant &&
+                  comments
+                    .filter((c) => c.frameId === frame.id)
+                    .map((c, ci) => (
+                      <CommentPin key={c.id} comment={c} index={ci + 1} />
+                    ))}
               </div>
-              <button
-                className="f-canvas-frame-dup"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  duplicateFrame(frame.id);
-                }}
-                title="Duplicate frame"
-              >
-                <Copy size={14} strokeWidth={1.5} />
-              </button>
-              <FramePushButton
-                frameId={frame.id}
-                getChanges={getFrameChanges}
-                contentChangeCount={contentChanges.filter((c) => c.frameId === frame.id).length}
-                onPush={pushFrame}
-                bridgeAvailable={bridgeAvailable}
-              />
+              {frame.isVariant && !frame.loading && (
+                <button
+                  className="f-canvas-frame-choose"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    chooseVariant(frame.id);
+                  }}
+                  title="Use this variant"
+                >
+                  Choose
+                </button>
+              )}
+              {!frame.isVariant && (
+                <>
+                  {frames.filter((f) => !f.isVariant).length > 1 && (
+                    <button
+                      className="f-canvas-frame-delete"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteFrame(frame.id);
+                      }}
+                      title="Delete frame"
+                    >
+                      Delete
+                    </button>
+                  )}
+                  <button
+                    className="f-canvas-frame-dup"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      duplicateFrame(frame.id);
+                    }}
+                    title="Duplicate frame"
+                  >
+                    Duplicate
+                  </button>
+                  <FramePushButton
+                    frameId={frame.id}
+                    getChanges={getFrameChanges}
+                    contentChangeCount={contentChanges.filter((c) => c.frameId === frame.id).length}
+                    onPush={pushFrame}
+                    bridgeAvailable={bridgeAvailable}
+                  />
+                </>
+              )}
             </div>
           ))}
+          {/* Dashed containers around variant groups */}
+          {(() => {
+            const groups = new Map<string, FrameState[]>();
+            for (const f of frames) {
+              if (f.isVariant && f.variantRequestId) {
+                const arr = groups.get(f.variantRequestId) ?? [];
+                arr.push(f);
+                groups.set(f.variantRequestId, arr);
+              }
+            }
+            const PAD = 30;
+            return Array.from(groups.entries()).map(([reqId, variantFrames]) => {
+              const minX = Math.min(...variantFrames.map((f) => f.x));
+              const minY = Math.min(...variantFrames.map((f) => f.y));
+              const maxX = Math.max(...variantFrames.map((f) => f.x + f.width));
+              const maxY = Math.max(...variantFrames.map((f) => f.y + f.height));
+              return (
+                <div
+                  key={`vg-${reqId}`}
+                  className="f-variant-group"
+                  style={{
+                    left: minX - PAD,
+                    top: minY - PAD,
+                    width: maxX - minX + PAD * 2,
+                    height: maxY - minY + PAD * 2,
+                  }}
+                >
+                  <button
+                    className="f-canvas-frame-dismiss"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setFrames((prev) => prev.filter((f) => f.variantRequestId !== reqId));
+                    }}
+                    title="Dismiss variants"
+                  >
+                    Dismiss variants
+                  </button>
+                </div>
+              );
+            });
+          })()}
         </div>
 
         <div className="f-canvas-topright">
@@ -621,6 +1008,17 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
           </button>
         </div>
 
+        {variantTarget && (
+          <VariantPopover
+            canvasRef={canvasRef}
+            viewportRef={viewportRef}
+            target={variantTarget}
+            frame={frames.find((f) => f.id === variantTarget.frameId)!}
+            onSubmit={handleSubmitVariant}
+            onCancel={cancelVariantTarget}
+          />
+        )}
+
         {pendingComment && (
           <CommentInput
             canvasRef={canvasRef}
@@ -639,6 +1037,13 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
             title="Inspect element"
           >
             <SquareMousePointer size={14} strokeWidth={1.5} />
+          </button>
+          <button
+            className={`f-canvas-hud-icon${variantMode ? " f-active" : ""}`}
+            onClick={variantMode ? stopVariantMode : startVariantMode}
+            title="Generate variants"
+          >
+            <Split size={14} strokeWidth={1.5} />
           </button>
           <button
             className={`f-canvas-hud-icon${commenting ? " f-active" : ""}`}
@@ -822,6 +1227,75 @@ function CommentPin({ comment, index }: { comment: CanvasComment; index: number 
       title={comment.text}
     >
       {comment.status === "pending" ? "…" : index}
+    </div>
+  );
+}
+
+// ── Variant popover ───────────────────────────────
+
+function VariantPopover({
+  canvasRef,
+  viewportRef,
+  target,
+  frame,
+  onSubmit,
+  onCancel,
+}: {
+  canvasRef: React.RefObject<HTMLDivElement | null>;
+  viewportRef: React.RefObject<CanvasViewport>;
+  target: VariantTarget;
+  frame: FrameState;
+  onSubmit: (prompt: string, count: number) => void;
+  onCancel: () => void;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [count, setCount] = useState(3);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const cr = canvasRef.current?.getBoundingClientRect();
+  const vp = viewportRef.current;
+  if (!cr || !vp) return null;
+
+  const screenX = cr.left + vp.x + (frame.x + target.x) * vp.zoom;
+  const screenY = cr.top + vp.y + (frame.y + target.y) * vp.zoom + 32;
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (prompt.trim()) onSubmit(prompt, count);
+    }
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      onCancel();
+    }
+  };
+
+  return (
+    <div className="f-variant-popover" style={{ left: screenX, top: screenY }}>
+      <div className="f-variant-count">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            className={`f-variant-count-btn${count === n ? " active" : ""}`}
+            onClick={() => setCount(n)}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+      <textarea
+        ref={inputRef}
+        className="f-comment-textarea"
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Describe the variants..."
+        rows={2}
+      />
     </div>
   );
 }

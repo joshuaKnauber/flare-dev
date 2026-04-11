@@ -2,28 +2,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasViewport } from "./useCanvasPanZoom";
 import type { FrameState } from "./Canvas";
 
-export type CommentStatus = "pending" | "applied" | "failed";
-
-export interface CanvasComment {
-  id: string;
-  frameId: string;
+export interface VariantTarget {
   el: Element;
+  frameId: string;
   selector: string;
   outerHTML: string;
-  text: string;
-  x: number; // iframe-local
-  y: number;
-  status: CommentStatus;
-}
-
-export interface PendingComment {
-  el: Element;
-  frameId: string;
   x: number;
   y: number;
 }
 
-let _commentId = 0;
+export interface VariantRequest {
+  id: string;
+  frameId: string;
+  selector: string;
+  outerHTML: string;
+  prompt: string;
+  count: number;
+}
+
+let _variantId = 0;
 
 function simpleSelector(el: Element): string {
   if (el.id) return `#${CSS.escape(el.id)}`;
@@ -32,98 +29,60 @@ function simpleSelector(el: Element): string {
   return cls ? `${tag}.${cls}` : tag;
 }
 
-export function useCanvasComments(
+export function useCanvasVariants(
   canvasRef: React.RefObject<HTMLDivElement | null>,
   viewportRef: React.RefObject<CanvasViewport>,
   frames: FrameState[],
 ) {
-  const [commenting, setCommenting] = useState(false);
-  const [comments, setComments] = useState<CanvasComment[]>([]);
-  const [pending, setPending] = useState<PendingComment | null>(null);
-  const commentingRef = useRef(false);
-  commentingRef.current = commenting;
+  const [variantMode, setVariantMode] = useState(false);
+  const [target, setTarget] = useState<VariantTarget | null>(null);
+  const [requests, setRequests] = useState<VariantRequest[]>([]);
+  const variantModeRef = useRef(false);
+  variantModeRef.current = variantMode;
 
-  const startCommenting = useCallback(() => {
-    setCommenting(true);
-    setPending(null);
+  const startVariantMode = useCallback(() => {
+    setVariantMode(true);
+    setTarget(null);
   }, []);
 
-  const stopCommenting = useCallback(() => {
-    setCommenting(false);
-    setPending(null);
+  const stopVariantMode = useCallback(() => {
+    setVariantMode(false);
+    setTarget(null);
   }, []);
 
-  const submitComment = useCallback(
-    (text: string): CanvasComment | null => {
-      if (!pending || !text.trim()) return null;
-      const comment: CanvasComment = {
-        id: `comment-${++_commentId}`,
-        frameId: pending.frameId,
-        el: pending.el,
-        selector: simpleSelector(pending.el),
-        outerHTML: pending.el.outerHTML,
-        text: text.trim(),
-        x: pending.x,
-        y: pending.y,
-        status: "pending",
+  const cancelTarget = useCallback(() => setTarget(null), []);
+
+  const submitVariant = useCallback(
+    (prompt: string, count: number): VariantRequest | null => {
+      if (!target || !prompt.trim() || count < 1) return null;
+      const req: VariantRequest = {
+        id: `variant-${++_variantId}`,
+        frameId: target.frameId,
+        selector: target.selector,
+        outerHTML: target.outerHTML,
+        prompt: prompt.trim(),
+        count,
       };
-      setComments((prev) => [...prev, comment]);
-      setPending(null);
-      return comment;
+      setRequests((prev) => [...prev, req]);
+      setTarget(null);
+      return req;
     },
-    [pending],
+    [target],
   );
 
-  const cancelPending = useCallback(() => setPending(null), []);
-
-  const addComment = useCallback(
-    (el: Element, frameId: string, text: string): CanvasComment | null => {
-      if (!text.trim()) return null;
-      const rect = el.getBoundingClientRect();
-      const comment: CanvasComment = {
-        id: `comment-${++_commentId}`,
-        frameId,
-        el,
-        selector: simpleSelector(el),
-        outerHTML: el.outerHTML,
-        text: text.trim(),
-        x: rect.left,
-        y: rect.top,
-        status: "pending",
-      };
-      setComments((prev) => [...prev, comment]);
-      return comment;
-    },
-    [],
-  );
-
-  const removeComment = useCallback((id: string) => {
-    setComments((prev) => prev.filter((c) => c.id !== id));
-  }, []);
-
-  const updateCommentStatus = useCallback(
-    (id: string, status: CommentStatus) => {
-      setComments((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, status } : c)),
-      );
-    },
-    [],
-  );
-
-  // Hover highlight + click to place — attaches to ALL frames
+  // Hover highlight + click to select target
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !commenting) return;
+    if (!canvas || !variantMode) return;
 
-    // Simple bounding box highlight
     const hl = document.createElement("div");
     Object.assign(hl.style, {
       position: "fixed",
       pointerEvents: "none",
       zIndex: "2147483646",
-      border: "2px solid #3b82f6",
+      border: "2px solid #a855f7",
       borderRadius: "2px",
-      background: "rgba(59, 130, 246, 0.06)",
+      background: "rgba(168, 85, 247, 0.06)",
       display: "none",
       transition: "top 0.06s, left 0.06s, width 0.06s, height 0.06s",
     });
@@ -151,13 +110,13 @@ export function useCanvasComments(
         }
 
         const onMove = (e: MouseEvent) => {
-          if (!commentingRef.current) return;
-          const target = e.target as Element;
-          if (!target) {
+          if (!variantModeRef.current) return;
+          const t = e.target as Element;
+          if (!t) {
             hl.style.display = "none";
             return;
           }
-          const rect = target.getBoundingClientRect();
+          const rect = t.getBoundingClientRect();
           const cr = canvas.getBoundingClientRect();
           const vp = viewportRef.current;
           Object.assign(hl.style, {
@@ -170,15 +129,17 @@ export function useCanvasComments(
         };
 
         const onClick = (e: MouseEvent) => {
-          if (!commentingRef.current) return;
-          const target = e.target as Element;
-          if (!target) return;
+          if (!variantModeRef.current) return;
+          const t = e.target as Element;
+          if (!t) return;
           e.preventDefault();
           e.stopPropagation();
-          const rect = target.getBoundingClientRect();
-          setPending({
-            el: target,
+          const rect = t.getBoundingClientRect();
+          setTarget({
+            el: t,
             frameId: frame.id,
+            selector: simpleSelector(t),
+            outerHTML: t.outerHTML,
             x: rect.left,
             y: rect.top,
           });
@@ -207,27 +168,22 @@ export function useCanvasComments(
           iframe.addEventListener("load", onLoad, { once: true });
           cleanups.push(() => iframe.removeEventListener("load", onLoad));
         }
-      } catch {
-        // cross-origin
-      }
+      } catch {}
     }
 
     return () => {
       cleanups.forEach((fn) => fn());
       hl.remove();
     };
-  }, [canvasRef, viewportRef, frames, commenting]);
+  }, [canvasRef, viewportRef, frames, variantMode]);
 
   return {
-    commenting,
-    comments,
-    pending,
-    startCommenting,
-    stopCommenting,
-    submitComment,
-    cancelPending,
-    removeComment,
-    addComment,
-    updateCommentStatus,
+    variantMode,
+    target,
+    requests,
+    startVariantMode,
+    stopVariantMode,
+    cancelTarget,
+    submitVariant,
   };
 }
