@@ -1,6 +1,7 @@
 import {
   Ellipsis,
   EyeOff,
+  ExternalLink,
   Frame,
   SquareMousePointer,
   X,
@@ -26,7 +27,6 @@ import {
   pushSnapshotToAgent,
 } from "./bridge-client";
 import {
-  IconCollapse,
   IconFlare,
   IconMoon,
   IconSun,
@@ -269,19 +269,23 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
         <div className={`f-shell-content${contentReady ? " f-visible" : ""}`}>
           {/* Top bar */}
           <div className="f-topbar" onPointerDown={drag.onPointerDown}>
-            <div className="f-brand">
+            <button
+              className="f-brand"
+              onClick={handleClose}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
               <IconFlare />
               <span>Flare</span>
               <button
                 className={`f-bridge-indicator f-bridge-${bridgeStatus.tone}`}
-                onClick={() => setBridgeDialogOpen(true)}
+                onClick={(e) => { e.stopPropagation(); setBridgeDialogOpen(true); }}
                 onPointerDown={(e) => e.stopPropagation()}
                 title={bridgeStatus.label}
                 aria-label={bridgeStatus.label}
               >
                 <span className="f-bridge-dot" />
               </button>
-            </div>
+            </button>
             <div className="f-topbar-actions">
               <div className="f-settings-wrap" ref={menuRef} onPointerDown={(e) => e.stopPropagation()}>
                 <button
@@ -307,23 +311,27 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
                       <EyeOff size={14} strokeWidth={1.5} />
                       <span>Hide for session</span>
                     </button>
+                    <a
+                      className="f-settings-item"
+                      href="https://x.com/joshuaKnauber"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      <ExternalLink size={14} strokeWidth={1.5} />
+                      <span>Give feedback</span>
+                    </a>
                   </div>
                 )}
               </div>
               <button
-                className={`f-settings-btn${canvasMode ? " f-active" : ""}`}
+                className={`f-canvas-mode-btn${canvasMode ? " f-active" : ""}`}
                 onClick={toggleCanvas}
                 onPointerDown={(e) => e.stopPropagation()}
                 title="Canvas mode"
               >
-                <Frame size={14} strokeWidth={1.5} />
-              </button>
-              <button
-                className="f-collapse-btn"
-                onClick={handleClose}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                <IconCollapse />
+                <Frame size={12} strokeWidth={1.5} />
+                <span>Canvas</span>
               </button>
             </div>
           </div>

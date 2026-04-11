@@ -10,14 +10,13 @@ import type { FrameState } from "./Canvas";
 /**
  * Element inspection for canvas mode.
  *
- * Shows hover overlays on the active frame.
- * When `inspecting` is true, clicking an element selects it for editing.
+ * When inspecting, attaches to ALL frames — hover shows box-model overlays,
+ * click selects the element and identifies its parent frame.
  */
 export function useCanvasInspector(
   canvasRef: React.RefObject<HTMLDivElement | null>,
   viewportRef: React.RefObject<CanvasViewport>,
   frames: FrameState[],
-  activeFrameId: string | null,
 ) {
   const [inspecting, setInspecting] = useState(false);
   const [selectedEl, setSelectedEl] = useState<Element | null>(null);
@@ -39,83 +38,85 @@ export function useCanvasInspector(
     [],
   );
 
-  // Attach hover overlays to the active frame
+  // Attach to ALL frames when inspecting
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !activeFrameId) return;
-
-    const frame = frames.find((f) => f.id === activeFrameId);
-    if (!frame) return;
-
-    const frameEl = canvas.querySelector<HTMLElement>(
-      `[data-frame-id="${frame.id}"]`,
-    );
-    const iframe = frameEl?.querySelector("iframe") as
-      | HTMLIFrameElement
-      | null;
-    if (!iframe) return;
+    if (!canvas || !inspecting) return;
 
     const overlay = createOverlaySet(document.body);
     overlayRef.current = overlay;
     const cleanups: (() => void)[] = [];
 
-    const attach = () => {
-      let doc: Document;
-      try {
-        if (!iframe.contentDocument) return;
-        doc = iframe.contentDocument;
-      } catch {
-        return;
-      }
+    for (const frame of frames) {
+      const frameEl = canvas.querySelector<HTMLElement>(
+        `[data-frame-id="${frame.id}"]`,
+      );
+      const iframe = frameEl?.querySelector("iframe") as
+        | HTMLIFrameElement
+        | null;
+      if (!iframe) continue;
 
-      const onMove = (e: MouseEvent) => {
-        if (!inspectingRef.current) return;
-        const target = e.target as Element;
-        if (!target) {
-          overlay.hide();
+      const attach = () => {
+        let doc: Document;
+        try {
+          if (!iframe.contentDocument) return;
+          doc = iframe.contentDocument;
+        } catch {
           return;
         }
-        const cr = canvas.getBoundingClientRect();
-        const t = canvasTransform(frame.x, frame.y, viewportRef.current, { x: cr.left, y: cr.top });
-        overlay.show(target, t);
+
+        const onMove = (e: MouseEvent) => {
+          if (!inspectingRef.current) return;
+          const target = e.target as Element;
+          if (!target) {
+            overlay.hide();
+            return;
+          }
+          const cr = canvas.getBoundingClientRect();
+          const t = canvasTransform(frame.x, frame.y, viewportRef.current, {
+            x: cr.left,
+            y: cr.top,
+          });
+          overlay.show(target, t);
+        };
+
+        const onClick = (e: MouseEvent) => {
+          if (!inspectingRef.current) return;
+          const target = e.target as Element;
+          if (!target) return;
+          e.preventDefault();
+          e.stopPropagation();
+          setSelectedEl(target);
+          setSelectedFrameId(frame.id);
+          setInspecting(false);
+          overlay.hide();
+        };
+
+        const onLeave = () => {
+          if (inspectingRef.current) overlay.hide();
+        };
+
+        doc.addEventListener("mousemove", onMove, true);
+        doc.addEventListener("click", onClick, true);
+        doc.addEventListener("mouseleave", onLeave);
+        cleanups.push(() => {
+          doc.removeEventListener("mousemove", onMove, true);
+          doc.removeEventListener("click", onClick, true);
+          doc.removeEventListener("mouseleave", onLeave);
+        });
       };
 
-      const onClick = (e: MouseEvent) => {
-        if (!inspectingRef.current) return;
-        const target = e.target as Element;
-        if (!target) return;
-        e.preventDefault();
-        e.stopPropagation();
-        setSelectedEl(target);
-        setSelectedFrameId(frame.id);
-        setInspecting(false);
-        overlay.hide();
-      };
-
-      const onLeave = () => {
-        if (inspectingRef.current) overlay.hide();
-      };
-
-      doc.addEventListener("mousemove", onMove, true);
-      doc.addEventListener("click", onClick, true);
-      doc.addEventListener("mouseleave", onLeave);
-      cleanups.push(() => {
-        doc.removeEventListener("mousemove", onMove, true);
-        doc.removeEventListener("click", onClick, true);
-        doc.removeEventListener("mouseleave", onLeave);
-      });
-    };
-
-    try {
-      if (iframe.contentDocument?.readyState === "complete") {
-        attach();
-      } else {
-        const onLoad = () => attach();
-        iframe.addEventListener("load", onLoad, { once: true });
-        cleanups.push(() => iframe.removeEventListener("load", onLoad));
+      try {
+        if (iframe.contentDocument?.readyState === "complete") {
+          attach();
+        } else {
+          const onLoad = () => attach();
+          iframe.addEventListener("load", onLoad, { once: true });
+          cleanups.push(() => iframe.removeEventListener("load", onLoad));
+        }
+      } catch {
+        // Cross-origin guard
       }
-    } catch {
-      // Cross-origin guard
     }
 
     return () => {
@@ -123,15 +124,7 @@ export function useCanvasInspector(
       overlay.destroy();
       overlayRef.current = null;
     };
-  }, [canvasRef, viewportRef, frames, activeFrameId]);
-
-  // Clear element selection when active frame changes
-  useEffect(() => {
-    if (selectedFrameId && selectedFrameId !== activeFrameId) {
-      setSelectedEl(null);
-      setSelectedFrameId(null);
-    }
-  }, [activeFrameId, selectedFrameId]);
+  }, [canvasRef, viewportRef, frames, inspecting]);
 
   return {
     inspecting,

@@ -160,7 +160,7 @@ export function useCanvasPanZoom(initial: CanvasViewport) {
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     const t = e.target as HTMLElement;
-    if (t.closest(".f-canvas-hud") || t.closest(".f-canvas-topright") || t.closest(".f-canvas-frame-dup") || t.closest(".f-canvas-frame-push")) return;
+    if (t.closest(".f-canvas-hud") || t.closest(".f-canvas-topright") || t.closest(".f-canvas-frame-dup") || t.closest(".f-canvas-frame-push") || t.closest(".f-canvas-frame-label")) return;
     if (e.button !== 0 && e.button !== 1) return;
     if (e.button === 1) e.preventDefault();
 

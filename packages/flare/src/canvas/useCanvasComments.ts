@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasViewport } from "./useCanvasPanZoom";
 import type { FrameState } from "./Canvas";
 
+export type CommentStatus = "pending" | "applied" | "failed";
+
 export interface CanvasComment {
   id: string;
   frameId: string;
@@ -11,6 +13,7 @@ export interface CanvasComment {
   text: string;
   x: number; // iframe-local
   y: number;
+  status: CommentStatus;
 }
 
 export interface PendingComment {
@@ -62,6 +65,7 @@ export function useCanvasComments(
         text: text.trim(),
         x: pending.x,
         y: pending.y,
+        status: "pending",
       };
       setComments((prev) => [...prev, comment]);
       setPending(null);
@@ -72,9 +76,39 @@ export function useCanvasComments(
 
   const cancelPending = useCallback(() => setPending(null), []);
 
+  const addComment = useCallback(
+    (el: Element, frameId: string, text: string): CanvasComment | null => {
+      if (!text.trim()) return null;
+      const rect = el.getBoundingClientRect();
+      const comment: CanvasComment = {
+        id: `comment-${++_commentId}`,
+        frameId,
+        el,
+        selector: simpleSelector(el),
+        outerHTML: el.outerHTML,
+        text: text.trim(),
+        x: rect.left,
+        y: rect.top,
+        status: "pending",
+      };
+      setComments((prev) => [...prev, comment]);
+      return comment;
+    },
+    [],
+  );
+
   const removeComment = useCallback((id: string) => {
     setComments((prev) => prev.filter((c) => c.id !== id));
   }, []);
+
+  const updateCommentStatus = useCallback(
+    (id: string, status: CommentStatus) => {
+      setComments((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, status } : c)),
+      );
+    },
+    [],
+  );
 
   // Hover highlight + click to place — attaches to ALL frames
   useEffect(() => {
@@ -192,5 +226,7 @@ export function useCanvasComments(
     submitComment,
     cancelPending,
     removeComment,
+    addComment,
+    updateCommentStatus,
   };
 }

@@ -2,6 +2,7 @@ import {
   ArrowUpRight,
   Copy,
   Ellipsis,
+  ExternalLink,
   Maximize,
   MessageSquare,
   SquareMousePointer,
@@ -86,6 +87,11 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
   const framesRef = useRef(frames);
   framesRef.current = frames;
   const [activeFrameId, setActiveFrameId] = useState<string | null>(null);
+
+  // Content changes from applied comments (tracked for push)
+  const [contentChanges, setContentChanges] = useState<
+    { frameId: string; selector: string; originalHTML: string; newHTML: string; comment: string }[]
+  >([]);
   const [guides, setGuides] = useState<ColumnGuide[]>(() => [defaultGuide()]);
   const [guidesVisible, setGuidesVisible] = useState(false);
 
@@ -114,7 +120,7 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
     startInspecting,
     stopInspecting,
     selectElement,
-  } = useCanvasInspector(canvasRef, viewportRef, frames, activeFrameId);
+  } = useCanvasInspector(canvasRef, viewportRef, frames);
 
   const {
     commenting,
@@ -125,7 +131,14 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
     submitComment: rawSubmitComment,
     cancelPending,
     removeComment,
+    addComment,
+    updateCommentStatus,
   } = useCanvasComments(canvasRef, viewportRef, frames);
+
+  // When inspector selects an element, also activate its frame
+  useEffect(() => {
+    if (selectedFrameId) setActiveFrameId(selectedFrameId);
+  }, [selectedFrameId]);
 
   const editor = useStyleEditor(selectedEl);
   const sourceInfo = useElementSource(selectedEl);
@@ -165,30 +178,74 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
       if (!active || responses.length === 0) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
+
       for (const resp of responses) {
-        // Find the element in any iframe and replace its outerHTML
+        let applied = false;
+        let error = "";
         const iframes = canvas.querySelectorAll<HTMLIFrameElement>(".f-canvas-iframe");
+
         for (const iframe of iframes) {
           try {
             const doc = iframe.contentDocument;
             if (!doc) continue;
-            const el = doc.querySelector(resp.selector);
+
+            // Try selector as-is, then with escaped class names (Tailwind brackets)
+            let el: Element | null = null;
+            try {
+              el = doc.querySelector(resp.selector);
+            } catch {
+              try {
+                const escaped = resp.selector.replace(
+                  /\.([^.#\s]+)/g,
+                  (_, cls: string) => `.${CSS.escape(cls)}`,
+                );
+                el = doc.querySelector(escaped);
+              } catch { /* selector unusable */ }
+            }
+
             if (el) {
+              const originalHTML = el.outerHTML;
               el.outerHTML = resp.outerHTML;
-              // Remove the comment that triggered this response
-              const matchingComment = comments.find(
-                (c) => c.selector === resp.selector,
-              );
-              if (matchingComment) removeComment(matchingComment.id);
+              applied = true;
+              // Mark matching comment as applied + track the content change
+              const match = comments.find((c) => c.selector === resp.selector);
+              if (match) {
+                updateCommentStatus(match.id, "applied");
+                setContentChanges((prev) => [
+                  ...prev,
+                  {
+                    frameId: match.frameId,
+                    selector: match.selector,
+                    originalHTML,
+                    newHTML: resp.outerHTML,
+                    comment: match.text,
+                  },
+                ]);
+              }
               break;
             }
-          } catch { /* cross-origin */ }
+          } catch (err) {
+            error = err instanceof Error ? err.message : String(err);
+          }
+        }
+
+        if (!applied) {
+          // Mark matching comment as failed
+          const match = comments.find((c) => c.selector === resp.selector);
+          if (match && match.status === "pending") {
+            updateCommentStatus(match.id, "failed");
+            // Retry: re-push with error context
+            void pushCommentRef.current({
+              ...match,
+              text: `[RETRY] Previous attempt failed${error ? `: ${error}` : ""}. Original request: ${match.text}`,
+            });
+          }
         }
       }
     };
     const id = setInterval(() => void poll(), 1000);
     return () => { active = false; clearInterval(id); };
-  }, [bridgeAvailable, canvasRef, comments, removeComment]);
+  }, [bridgeAvailable, canvasRef, comments, removeComment, updateCommentStatus]);
 
   // ── Per-frame push ──────────────────────────────
   const getFrameChanges = useCallback(
@@ -211,14 +268,28 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
   const pushFrame = useCallback(
     async (frameId: string) => {
       const entries = getFrameChanges(frameId);
-      if (entries.length === 0) return;
+      const frameContentChanges = contentChanges.filter((c) => c.frameId === frameId);
+      if (entries.length === 0 && frameContentChanges.length === 0) return;
+
+      // Serialize style changes
+      const styleChanges = entries.map((e) => serializeElementChange(e));
+
+      // Serialize content changes as comment-only entries
+      const contentEntries = frameContentChanges.map((c) => ({
+        selector: c.selector,
+        path: c.selector,
+        comment: `Apply this content change to source:\n${c.comment}\n\nOriginal HTML:\n${c.originalHTML}\n\nNew HTML (apply this):\n${c.newHTML}`,
+        changes: [],
+      }));
+
       const snapshot = {
         updatedAt: new Date().toISOString(),
-        changes: entries.map((e) => serializeElementChange(e)),
+        changes: [...styleChanges, ...contentEntries],
       };
       const result = await pushSnapshotToAgent(snapshot);
       if (result.ok) {
-        editor.acknowledgeEntries(entries);
+        if (entries.length > 0) editor.acknowledgeEntries(entries);
+        setContentChanges((prev) => prev.filter((c) => c.frameId !== frameId));
         // Remove all other frames — pushed frame is now the source of truth
         setFrames((prev) => prev.filter((f) => f.id === frameId));
         setActiveFrameId(frameId);
@@ -246,6 +317,9 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
     },
     [],
   );
+
+  const pushCommentRef = useRef(pushComment);
+  pushCommentRef.current = pushComment;
 
   const handleSubmitComment = useCallback(
     (text: string) => {
@@ -449,7 +523,13 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
                   i === 0 && frames.length === 1 ? "0.15s" : "0s",
               }}
             >
-              <div className="f-canvas-frame-label">
+              <div
+                className="f-canvas-frame-label"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveFrameId(frame.id);
+                }}
+              >
                 {window.location.pathname} / {frame.width}&times;{frame.height}
               </div>
               <div className="f-canvas-frame-content">
@@ -486,6 +566,7 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
               <FramePushButton
                 frameId={frame.id}
                 getChanges={getFrameChanges}
+                contentChangeCount={contentChanges.filter((c) => c.frameId === frame.id).length}
                 onPush={pushFrame}
                 bridgeAvailable={bridgeAvailable}
               />
@@ -511,6 +592,23 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
                   {theme === "dark" ? <IconSun /> : <IconMoon />}
                   <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
                 </button>
+                <button
+                  className="f-settings-item"
+                  onClick={() => { handleFit(); setMenuOpen(false); }}
+                >
+                  <Maximize size={14} strokeWidth={1.5} />
+                  <span>Fit to view</span>
+                </button>
+                <a
+                  className="f-settings-item"
+                  href="https://x.com/joshuaKnauber"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  <ExternalLink size={14} strokeWidth={1.5} />
+                  <span>Give feedback</span>
+                </a>
               </div>
             )}
           </div>
@@ -536,39 +634,27 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
 
         <div className="f-canvas-hud">
           <button
+            className={`f-canvas-hud-icon${inspecting ? " f-active" : ""}`}
+            onClick={inspecting ? stopInspecting : startInspecting}
+            title="Inspect element"
+          >
+            <SquareMousePointer size={14} strokeWidth={1.5} />
+          </button>
+          <button
             className={`f-canvas-hud-icon${commenting ? " f-active" : ""}`}
             onClick={commenting ? stopCommenting : startCommenting}
             title="Comment tool"
           >
             <MessageSquare size={14} strokeWidth={1.5} />
           </button>
-          <button
-            className="f-canvas-hud-icon"
-            onClick={handleFit}
-            title="Fit to view"
-          >
-            <Maximize size={14} strokeWidth={1.5} />
-          </button>
           <span ref={zoomRef} className="f-canvas-hud-zoom" />
         </div>
       </div>
 
       <div className="f-canvas-panel">
-        {!activeFrameId ? (
-          <div className="f-empty-state">
-            <SquareMousePointer size={16} strokeWidth={1.5} />
-            <span>Select a frame</span>
-          </div>
-        ) : (
+        {selectedEl ? (
           <>
             <div className="f-inspect-bar">
-              <button
-                className={`f-inspect-btn${inspecting ? " active" : ""}`}
-                onClick={inspecting ? stopInspecting : startInspecting}
-              >
-                <SquareMousePointer size={13} strokeWidth={1.5} />
-                <span>{inspecting ? "Cancel" : "Select Element"}</span>
-              </button>
               {sourceInfo?.source ? (
                 <SourceReference info={sourceInfo} />
               ) : (
@@ -579,30 +665,32 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
                   onHoverEnd={() => {}}
                 />
               )}
-              {selectedEl && (
-                <ElementComment
-                  key={commentKeyRef.current}
-                  value={editor.comment}
-                  onChange={editor.setComment}
-                />
-              )}
+              <ElementComment
+                key={commentKeyRef.current}
+                value=""
+                onChange={(text) => {
+                  if (!text.trim() || !selectedEl || !selectedFrameId) return;
+                  const comment = addComment(selectedEl, selectedFrameId, text.trim());
+                  if (comment) void pushComment(comment);
+                  commentKeyRef.current += 1;
+                }}
+              />
             </div>
-
             <div className="f-scroll">
-              {selectedEl ? (
-                <PropertySections editor={editor} selectedEl={selectedEl} />
-              ) : (
-                <>
+              <PropertySections editor={editor} selectedEl={selectedEl} />
+            </div>
+          </>
+        ) : (
+          <div className="f-scroll">
+            <>
                   <GuideSettings
                     guides={guides}
                     onChange={setGuides}
                     visible={guidesVisible}
                     onToggleVisible={() => setGuidesVisible((v) => !v)}
                   />
-                </>
-              )}
-            </div>
-          </>
+            </>
+          </div>
         )}
       </div>
     </div>
@@ -614,19 +702,20 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
 function FramePushButton({
   frameId,
   getChanges,
+  contentChangeCount,
   onPush,
 }: {
   frameId: string;
   getChanges: (id: string) => ElementEntry[];
+  contentChangeCount: number;
   onPush: (id: string) => Promise<void>;
   bridgeAvailable: boolean;
 }) {
   const changes = getChanges(frameId);
-  if (changes.length === 0) return null;
-
-  const count = changes.reduce((n, e) => {
+  const styleCount = changes.reduce((n, e) => {
     return n + Object.entries(e.overrides).filter(([p, v]) => v !== e.original[p]).length;
   }, 0);
+  const count = styleCount + contentChangeCount;
   if (count === 0) return null;
 
   return (
@@ -636,10 +725,10 @@ function FramePushButton({
         e.stopPropagation();
         void onPush(frameId);
       }}
-      title={`Push ${count} change${count !== 1 ? "s" : ""}`}
+      title={`Make ${count} change${count !== 1 ? "s" : ""} real`}
     >
       <ArrowUpRight size={13} strokeWidth={2} />
-      <span>{count}</span>
+      <span>Make {count} change{count !== 1 ? "s" : ""} real</span>
     </button>
   );
 }
@@ -719,13 +808,20 @@ function CommentPin({ comment, index }: { comment: CanvasComment; index: number 
     }
   });
 
+  const statusClass =
+    comment.status === "pending"
+      ? " f-comment-pin-pending"
+      : comment.status === "failed"
+        ? " f-comment-pin-failed"
+        : "";
+
   return (
     <div
-      className="f-comment-pin"
+      className={`f-comment-pin${statusClass}`}
       style={{ left: pos.x, top: pos.y }}
       title={comment.text}
     >
-      {index}
+      {comment.status === "pending" ? "…" : index}
     </div>
   );
 }

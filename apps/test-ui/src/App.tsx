@@ -147,7 +147,7 @@ export default function App() {
             <p className="text-xs font-medium tracking-[0.15em] uppercase text-[#999] mb-5">
               Now in private beta
             </p>
-            <h1 className="font-[Playfair_Display,Georgia,serif] text-[clamp(40px,6vw,72px)] font-medium leading-[1.05] tracking-[-0.02em] mb-6">
+            <h1 className="font-[Playfair_Display,Georgia,serif] text-[clamp(40px,6vw,72px)] font-medium leading-[1.05] tracking-[-0.02em] mb-20">
               Light that
               <br />
               <em className="font-[Playfair_Display,Georgia,serif]">
@@ -184,11 +184,12 @@ export default function App() {
         </div>
 
         {/* Stats row */}
-        <div className="flex items-center justify-start gap-14 mt-20 animate-[fadeUp_0.8s_ease_0.3s_both]">
+        <div className="flex items-center justify-start gap-10 mt-20 animate-[fadeUp_0.8s_ease_0.3s_both]">
           {[
             ["12,000+", "On the waitlist"],
             ["99.97%", "System uptime"],
             ["<8ms", "Response latency"],
+            ["50+", "Integrations"],
           ].map(([num, label]) => (
             <div key={label}>
               <div className="font-[Playfair_Display,Georgia,serif] text-[28px] font-medium tracking-tight">

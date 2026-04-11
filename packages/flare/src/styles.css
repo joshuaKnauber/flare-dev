@@ -165,6 +165,18 @@
   font-weight: 600;
   font-size: 12.5px;
   letter-spacing: -0.02em;
+  border: none;
+  background: transparent;
+  color: var(--f-text);
+  font-family: var(--f-font-label);
+  cursor: pointer;
+  padding: 0;
+  border-radius: var(--f-radius-sm);
+  transition: opacity 0.15s;
+}
+
+.f-brand:hover {
+  opacity: 0.7;
 }
 
 .f-bridge-indicator {
@@ -250,7 +262,7 @@
 .f-topbar-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
 }
 
 .f-collapse-btn,
@@ -276,6 +288,40 @@
 .f-collapse-btn:active,
 .f-settings-btn:active {
   transform: scale(0.9);
+}
+
+/* ── Canvas mode button ────────────────────────── */
+.f-canvas-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border-radius: var(--f-radius-sm);
+  border: 1px solid var(--f-border);
+  background: transparent;
+  color: var(--f-text-dim);
+  font-family: var(--f-font-label);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.f-canvas-mode-btn:hover {
+  background: var(--f-surface-2);
+  color: var(--f-text);
+  border-color: var(--f-border-h);
+}
+
+.f-canvas-mode-btn:active {
+  transform: scale(0.96);
+}
+
+.f-canvas-mode-btn.f-active {
+  color: var(--f-accent);
+  border-color: var(--f-accent);
+  background: var(--f-accent-dim);
 }
 
 /* ── Settings Popover ───────────────────────────── */
@@ -1869,7 +1915,7 @@
 /* ── Canvas viewport (inset, rounded) ────────────── */
 .f-canvas {
   flex: 1;
-  margin: 12px;
+  margin: 12px 0 12px 12px;
   border-radius: 10px;
   border: 1px solid var(--f-border);
   background: #0e0e11;
@@ -1940,10 +1986,6 @@
   outline: calc(2px * var(--f-inv-zoom, 1)) solid #3b82f6;
 }
 
-.f-canvas-frame.f-frame-active .f-canvas-frame-label {
-  color: #3b82f6;
-}
-
 
 /* ── Inspecting state — all iframes interactive ──── */
 .f-canvas.f-canvas-inspecting .f-canvas-iframe {
@@ -1987,6 +2029,16 @@
 
 .f-comment-pin:hover {
   transform: scale(var(--f-inv-zoom, 1)) translate(-2px, -28px) scale(1.15);
+}
+
+.f-comment-pin-pending,
+.f-comment-pin-failed {
+  animation: f-comment-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes f-comment-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 /* ── Comment input (floating) ────────────────────── */
@@ -2087,13 +2139,22 @@
   font-size: calc(12px * var(--f-inv-zoom, 1));
   color: rgba(255 255 255 / 0.4);
   white-space: nowrap;
-  pointer-events: none;
+  pointer-events: auto;
   user-select: none;
   transform-origin: left bottom;
+  cursor: pointer;
+}
+
+.f-canvas-frame-label:hover {
+  opacity: 0.8;
 }
 
 :host(.f-light) .f-canvas-frame-label {
   color: rgba(0 0 0 / 0.35);
+}
+
+.f-canvas-frame.f-frame-active .f-canvas-frame-label {
+  color: #3b82f6;
 }
 
 /* ── Frame content (clips pins + guides on scroll) ─ */
