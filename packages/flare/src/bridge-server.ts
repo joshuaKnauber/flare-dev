@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { URL } from "node:url";
 import type {
@@ -151,6 +151,45 @@ export function createBridgeServer(
         });
         return;
       }
+      // Agent posts DOM updates back to Flare
+      if (req.method === "POST" && url.pathname === "/api/agent/respond") {
+        const body = await readJson(req) as Record<string, unknown> | null;
+        if (!body || typeof body.origin !== "string" || typeof body.selector !== "string" || typeof body.outerHTML !== "string") {
+          sendJson(res, 400, { error: "Invalid respond payload — need origin, selector, outerHTML" });
+          return;
+        }
+        const outboxPath = getOriginInboxPath(body.origin as string) + "-outbox";
+        mkdirSync(outboxPath, { recursive: true });
+        const filePath = join(outboxPath, toTimestampFileName(new Date().toISOString()));
+        writeFileSync(filePath, JSON.stringify(body, null, 2));
+        process.stdout.write(`Response for ${body.selector} -> ${filePath}\n`);
+        sendJson(res, 202, { ok: true });
+        return;
+      }
+
+      // Flare polls for pending DOM updates
+      if (req.method === "GET" && url.pathname === "/api/agent/responses") {
+        const origin = url.searchParams.get("origin");
+        if (!origin) {
+          sendJson(res, 400, { error: "Missing origin query param" });
+          return;
+        }
+        const outboxPath = getOriginInboxPath(origin) + "-outbox";
+        if (!existsSync(outboxPath)) {
+          sendJson(res, 200, { responses: [] });
+          return;
+        }
+        const files = readdirSync(outboxPath).filter((n) => n.endsWith(".json")).sort();
+        const responses = files.map((name) => {
+          const fp = join(outboxPath, name);
+          const data = JSON.parse(readFileSync(fp, "utf8"));
+          unlinkSync(fp);
+          return data;
+        });
+        sendJson(res, 200, { responses });
+        return;
+      }
+
       sendJson(res, 404, { error: "Not found" });
     } catch (error) {
       sendJson(res, 500, {

@@ -47,6 +47,29 @@ export async function getBridgeStatus() {
   }
 }
 
+export interface AgentDomResponse {
+  origin: string;
+  selector: string;
+  outerHTML: string;
+}
+
+export async function pollAgentResponses(): Promise<AgentDomResponse[]> {
+  const config = getBridgeConfig();
+  const origin = getCurrentOrigin();
+  if (!origin) return [];
+
+  try {
+    const url = new URL("/api/agent/responses", config.url);
+    url.searchParams.set("origin", origin);
+    const response = await fetch(url);
+    if (!response.ok) return [];
+    const data = (await response.json()) as { responses?: AgentDomResponse[] };
+    return data.responses ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function pushSnapshotToAgent(
   snapshot: FlareSessionSnapshot,
 ) {

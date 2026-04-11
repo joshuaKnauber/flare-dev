@@ -15,7 +15,7 @@ import {
   SourceReference,
 } from "../components";
 import { useElementSource, useStyleEditor, useTheme } from "../hooks";
-import { getBridgeStatus, pushSnapshotToAgent } from "../bridge-client";
+import { getBridgeStatus, pollAgentResponses, pushSnapshotToAgent } from "../bridge-client";
 import { serializeElementChange } from "../utils";
 import type { ElementEntry } from "../utils";
 import { useCanvasComments, type PendingComment, type CanvasComment } from "./useCanvasComments";
@@ -155,6 +155,40 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
     const id = setInterval(() => void poll(), 2000);
     return () => { active = false; clearInterval(id); };
   }, []);
+
+  // ── Poll for agent DOM responses ─────────────────
+  useEffect(() => {
+    if (!bridgeAvailable) return;
+    let active = true;
+    const poll = async () => {
+      const responses = await pollAgentResponses();
+      if (!active || responses.length === 0) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      for (const resp of responses) {
+        // Find the element in any iframe and replace its outerHTML
+        const iframes = canvas.querySelectorAll<HTMLIFrameElement>(".f-canvas-iframe");
+        for (const iframe of iframes) {
+          try {
+            const doc = iframe.contentDocument;
+            if (!doc) continue;
+            const el = doc.querySelector(resp.selector);
+            if (el) {
+              el.outerHTML = resp.outerHTML;
+              // Remove the comment that triggered this response
+              const matchingComment = comments.find(
+                (c) => c.selector === resp.selector,
+              );
+              if (matchingComment) removeComment(matchingComment.id);
+              break;
+            }
+          } catch { /* cross-origin */ }
+        }
+      }
+    };
+    const id = setInterval(() => void poll(), 1000);
+    return () => { active = false; clearInterval(id); };
+  }, [bridgeAvailable, canvasRef, comments, removeComment]);
 
   // ── Per-frame push ──────────────────────────────
   const getFrameChanges = useCallback(

@@ -139,7 +139,7 @@ Each change entry looks like:
 
 ### Content comments (canvas mode)
 
-When `changes` is empty but `comment` is present, the user is describing a content or structural change. The comment often includes the element's current HTML:
+When `changes` is empty but `comment` is present, the user is describing a content or structural change from canvas mode. The comment includes the element's current HTML:
 
 ```json
 {
@@ -151,11 +151,26 @@ When `changes` is empty but `comment` is present, the user is describing a conte
 }
 ```
 
-For content comments:
-- Read the comment text and the included HTML to understand what to change
-- Find the element in the source code using the selector, path, or text snippet
-- Apply the described modification (text change, structural change, etc.)
-- These changes should be applied to the source files directly
+**Important: Comments modify the frame, not the source code.** The user is exploring changes in the canvas — these aren't final yet. Instead of editing source files, send the modified HTML back to Flare so it can update the iframe in-place:
+
+```bash
+curl -X POST http://127.0.0.1:4318/api/agent/respond \
+  -H "Content-Type: application/json" \
+  -d '{
+    "origin": "http://localhost:5173",
+    "selector": "h1.hero-title",
+    "outerHTML": "<h1 class=\"hero-title\">Ship faster</h1>"
+  }'
+```
+
+The response fields:
+- `origin` — the app origin (same as in the push request)
+- `selector` — CSS selector to find the element in the iframe
+- `outerHTML` — the complete replacement HTML for that element
+
+Flare will pick up the response and replace the element's `outerHTML` in the canvas frame. The user can then compare versions and eventually push the frame's style changes to source when they're ready.
+
+Do NOT modify source files for content comments. Only style change pushes (entries with non-empty `changes` arrays) should be applied to source.
 
 ### After applying
 
