@@ -59,7 +59,15 @@ const hidden = (() => {
   }
 })();
 
-if (!hidden) {
+const isEmbed = (() => {
+  try {
+    return new URLSearchParams(window.location.search).has("__flare_embed");
+  } catch {
+    return false;
+  }
+})();
+
+if (!hidden && !isEmbed) {
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", mount);
   } else {

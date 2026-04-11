@@ -211,161 +211,9 @@ export function useDrag(expanded: boolean) {
 }
 
 // ── Inspector ──────────────────────────────────────
-const OVERLAY_BASE: Partial<CSSStyleDeclaration> = {
-  position: "fixed",
-  pointerEvents: "none",
-  zIndex: "2147483646",
-  display: "none",
-};
+import { createOverlaySet, identityTransform } from "./inspector";
 
 const BOX_TRANSITION = "top 0.06s, left 0.06s, width 0.06s, height 0.06s";
-
-const TOOLTIP_STYLES: Partial<CSSStyleDeclaration> = {
-  ...OVERLAY_BASE,
-  background: "#1a1a1a",
-  color: "#e5e5e5",
-  fontFamily: "'Geist Mono', monospace",
-  fontSize: "10px",
-  padding: "3px 8px",
-  borderRadius: "4px",
-  whiteSpace: "nowrap",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-};
-
-const LABEL_BASE: Partial<CSSStyleDeclaration> = {
-  ...OVERLAY_BASE,
-  fontFamily: "'Geist Mono', monospace",
-  fontSize: "9px",
-  color: "#fff",
-  padding: "1px 4px",
-  borderRadius: "2px",
-  whiteSpace: "nowrap",
-  lineHeight: "14px",
-  textAlign: "center",
-};
-
-function createStyledDiv(attr: string, styles: Partial<CSSStyleDeclaration>) {
-  const div = document.createElement("div");
-  div.setAttribute(attr, "");
-  Object.assign(div.style, styles);
-  document.body.appendChild(div);
-  return div;
-}
-
-function getBoxMetrics(el: Element) {
-  const cs = getComputedStyle(el);
-  const rect = el.getBoundingClientRect();
-  return {
-    rect,
-    margin: {
-      top: parseFloat(cs.marginTop) || 0,
-      right: parseFloat(cs.marginRight) || 0,
-      bottom: parseFloat(cs.marginBottom) || 0,
-      left: parseFloat(cs.marginLeft) || 0,
-    },
-    padding: {
-      top: parseFloat(cs.paddingTop) || 0,
-      right: parseFloat(cs.paddingRight) || 0,
-      bottom: parseFloat(cs.paddingBottom) || 0,
-      left: parseFloat(cs.paddingLeft) || 0,
-    },
-    border: {
-      top: parseFloat(cs.borderTopWidth) || 0,
-      right: parseFloat(cs.borderRightWidth) || 0,
-      bottom: parseFloat(cs.borderBottomWidth) || 0,
-      left: parseFloat(cs.borderLeftWidth) || 0,
-    },
-  };
-}
-
-interface Box {
-  top: number;
-  left: number;
-  width: number;
-  height: number;
-}
-
-function getGapOverlays(el: Element, contentBox: Box): Box[] {
-  const cs = getComputedStyle(el);
-  if (!/^(inline-)?(flex|grid)$/.test(cs.display)) return [];
-
-  const rowGap = parseFloat(cs.rowGap) || 0;
-  const colGap = parseFloat(cs.columnGap) || 0;
-  if (!rowGap && !colGap) return [];
-
-  const children = Array.from(el.children).filter((c) => {
-    const s = getComputedStyle(c);
-    return (
-      s.display !== "none" &&
-      s.position !== "absolute" &&
-      s.position !== "fixed"
-    );
-  });
-  if (children.length < 2) return [];
-
-  const childRects = children.map((c) => c.getBoundingClientRect());
-  const result: Box[] = [];
-
-  // Group children into visual rows (by top-position proximity)
-  const sorted = childRects
-    .slice()
-    .sort((a, b) => a.top - b.top || a.left - b.left);
-  const rows: DOMRect[][] = [];
-  for (const r of sorted) {
-    const last = rows[rows.length - 1];
-    if (
-      last &&
-      Math.abs(r.top - last[0].top) < Math.max(2, last[0].height * 0.3)
-    ) {
-      last.push(r);
-    } else {
-      rows.push([r]);
-    }
-  }
-
-  // Column gaps within each row
-  if (colGap > 0) {
-    for (const row of rows) {
-      row.sort((a, b) => a.left - b.left);
-      const rowTop = Math.min(...row.map((r) => r.top));
-      const rowBot = Math.max(...row.map((r) => r.bottom));
-      for (let i = 0; i < row.length - 1; i++) {
-        const gapW = row[i + 1].left - row[i].right;
-        if (gapW > 0.5) {
-          result.push({
-            top: rowTop,
-            left: row[i].right,
-            width: gapW,
-            height: rowBot - rowTop,
-          });
-        }
-      }
-    }
-  }
-
-  // Row gaps between rows
-  if (rowGap > 0 && rows.length > 1) {
-    for (let i = 0; i < rows.length - 1; i++) {
-      const rowBot = Math.max(...rows[i].map((r) => r.bottom));
-      const nextTop = Math.min(...rows[i + 1].map((r) => r.top));
-      const gapH = nextTop - rowBot;
-      if (gapH > 0.5) {
-        result.push({
-          top: rowBot,
-          left: contentBox.left,
-          width: contentBox.width,
-          height: gapH,
-        });
-      }
-    }
-  }
-
-  return result;
-}
-
-const GAP_STRIPE =
-  "repeating-linear-gradient(-45deg, rgba(180,120,255,0.14), rgba(180,120,255,0.14) 2px, rgba(180,120,255,0.05) 2px, rgba(180,120,255,0.05) 5px)";
-const GAP_POOL = 16;
 
 export function useInspector() {
   const [inspecting, setInspecting] = useState(false);
@@ -375,236 +223,44 @@ export function useInspector() {
   useEffect(() => {
     if (!inspecting) return;
 
-    // Box layers: margin (orange), padding (green), content (blue)
-    const marginEl = createStyledDiv("data-flare-overlay", {
-      ...OVERLAY_BASE,
-      background: "rgba(255, 122, 0, 0.08)",
-      transition: BOX_TRANSITION,
-    });
-    const paddingEl = createStyledDiv("data-flare-overlay", {
-      ...OVERLAY_BASE,
-      background: "rgba(110, 200, 120, 0.12)",
-      border: "1.5px solid rgba(255, 122, 0, 0.55)",
-      borderRadius: "2px",
-      transition: BOX_TRANSITION,
-    });
-    const contentEl = createStyledDiv("data-flare-overlay", {
-      ...OVERLAY_BASE,
-      background: "rgba(100, 160, 255, 0.12)",
-      transition: BOX_TRANSITION,
-    });
-
-    // Value labels: 4 margin (orange) + 4 padding (green)
-    const mLabels = Array.from({ length: 4 }, () =>
-      createStyledDiv("data-flare-overlay", {
-        ...LABEL_BASE,
-        background: "rgba(255, 122, 0, 0.8)",
-      }),
-    );
-    const pLabels = Array.from({ length: 4 }, () =>
-      createStyledDiv("data-flare-overlay", {
-        ...LABEL_BASE,
-        background: "rgba(110, 200, 120, 0.8)",
-      }),
-    );
-
-    // Gap strips (purple hatched) + labels
-    const gapStrips = Array.from({ length: GAP_POOL }, () =>
-      createStyledDiv("data-flare-overlay", {
-        ...OVERLAY_BASE,
-        background: GAP_STRIPE,
-      }),
-    );
-    const gapLabels = Array.from({ length: GAP_POOL }, () =>
-      createStyledDiv("data-flare-overlay", {
-        ...LABEL_BASE,
-        background: "rgba(180, 120, 255, 0.85)",
-      }),
-    );
-
-    const tooltip = createStyledDiv("data-flare-tooltip", TOOLTIP_STYLES);
-    const allEls = [
-      marginEl,
-      paddingEl,
-      contentEl,
-      tooltip,
-      ...mLabels,
-      ...pLabels,
-      ...gapStrips,
-      ...gapLabels,
-    ];
+    const overlay = createOverlaySet(document.body);
+    const transform = identityTransform();
     let hoverRequestId = 0;
-
-    const positionLabel = (
-      label: HTMLDivElement,
-      val: number,
-      x: number,
-      y: number,
-    ) => {
-      if (Math.abs(val) > 0) {
-        label.textContent = `${Math.round(val)}`;
-        Object.assign(label.style, {
-          top: `${y}px`,
-          left: `${x}px`,
-          transform: "translate(-50%, -50%)",
-          display: "block",
-        });
-      } else {
-        label.style.display = "none";
-      }
-    };
-
-    const setTooltipLabel = (el: Element) => {
-      const fallbackLabel = getElementLabel(el).full;
-      tooltip.textContent = fallbackLabel;
-
-      const cached = hoverSourceCacheRef.current.get(el);
-      if (cached !== undefined) {
-        tooltip.textContent = cached || fallbackLabel;
-        return;
-      }
-
-      const requestId = ++hoverRequestId;
-      void resolveBestElementInfo(el)
-        .then((info) => {
-          const sourceLabel = info.source
-            ? formatSourceLocation(info.source)
-            : null;
-          hoverSourceCacheRef.current.set(el, sourceLabel);
-          if (requestId === hoverRequestId) {
-            tooltip.textContent = sourceLabel || fallbackLabel;
-          }
-        })
-        .catch(() => {
-          hoverSourceCacheRef.current.set(el, null);
-          if (requestId === hoverRequestId) {
-            tooltip.textContent = fallbackLabel;
-          }
-        });
-    };
-
-    const showOverlay = (el: Element) => {
-      const { rect, margin: m, padding: p, border: b } = getBoxMetrics(el);
-
-      // Margin box (outermost)
-      Object.assign(marginEl.style, {
-        top: `${rect.top - m.top}px`,
-        left: `${rect.left - m.left}px`,
-        width: `${rect.width + m.left + m.right}px`,
-        height: `${rect.height + m.top + m.bottom}px`,
-        display: "block",
-      });
-
-      // Border box (shows padding fill)
-      Object.assign(paddingEl.style, {
-        top: `${rect.top}px`,
-        left: `${rect.left}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
-        display: "block",
-      });
-
-      // Content box (innermost)
-      const cTop = rect.top + b.top + p.top;
-      const cLeft = rect.left + b.left + p.left;
-      const cWidth = Math.max(
-        0,
-        rect.width - b.left - p.left - p.right - b.right,
-      );
-      const cHeight = Math.max(
-        0,
-        rect.height - b.top - p.top - p.bottom - b.bottom,
-      );
-      Object.assign(contentEl.style, {
-        top: `${cTop}px`,
-        left: `${cLeft}px`,
-        width: `${cWidth}px`,
-        height: `${cHeight}px`,
-        display: "block",
-      });
-
-      // Margin labels [top, right, bottom, left]
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      positionLabel(mLabels[0], m.top, cx, rect.top - m.top / 2);
-      positionLabel(mLabels[1], m.right, rect.right + m.right / 2, cy);
-      positionLabel(mLabels[2], m.bottom, cx, rect.bottom + m.bottom / 2);
-      positionLabel(mLabels[3], m.left, rect.left - m.left / 2, cy);
-
-      // Padding labels [top, right, bottom, left]
-      positionLabel(pLabels[0], p.top, cx, rect.top + b.top + p.top / 2);
-      positionLabel(
-        pLabels[1],
-        p.right,
-        rect.right - b.right - p.right / 2,
-        cy,
-      );
-      positionLabel(
-        pLabels[2],
-        p.bottom,
-        cx,
-        rect.bottom - b.bottom - p.bottom / 2,
-      );
-      positionLabel(pLabels[3], p.left, rect.left + b.left + p.left / 2, cy);
-
-      // Gap overlays (purple hatched strips between flex/grid children)
-      const gaps = getGapOverlays(el, {
-        top: cTop,
-        left: cLeft,
-        width: cWidth,
-        height: cHeight,
-      });
-      for (let i = 0; i < GAP_POOL; i++) {
-        if (i < gaps.length) {
-          const g = gaps[i];
-          Object.assign(gapStrips[i].style, {
-            top: `${g.top}px`,
-            left: `${g.left}px`,
-            width: `${g.width}px`,
-            height: `${g.height}px`,
-            display: "block",
-          });
-          const val = Math.min(g.width, g.height);
-          gapLabels[i].textContent = `${Math.round(val)}`;
-          Object.assign(gapLabels[i].style, {
-            top: `${g.top + g.height / 2}px`,
-            left: `${g.left + g.width / 2}px`,
-            transform: "translate(-50%, -50%)",
-            display: "block",
-          });
-        } else {
-          gapStrips[i].style.display = "none";
-          gapLabels[i].style.display = "none";
-        }
-      }
-
-      // Tooltip
-      setTooltipLabel(el);
-      const tY =
-        rect.top - m.top > 28
-          ? rect.top - m.top - 24
-          : rect.bottom + m.bottom + 6;
-      Object.assign(tooltip.style, {
-        top: `${tY}px`,
-        left: `${rect.left}px`,
-        display: "block",
-      });
-    };
-
-    const hideOverlay = () => {
-      hoverRequestId += 1;
-      allEls.forEach((el) => {
-        el.style.display = "none";
-      });
-    };
 
     const onMouseMove = (e: MouseEvent) => {
       const target = e.target as Element;
       if (!target || isFlareElement(target)) {
-        hideOverlay();
+        hoverRequestId += 1;
+        overlay.hide();
         return;
       }
-      showOverlay(target);
+      overlay.show(target, transform);
+
+      // Async source resolution for tooltip
+      const fallbackLabel = getElementLabel(target).full;
+      const cached = hoverSourceCacheRef.current.get(target);
+      if (cached !== undefined) {
+        overlay.setTooltip(cached || fallbackLabel);
+        return;
+      }
+
+      const requestId = ++hoverRequestId;
+      void resolveBestElementInfo(target)
+        .then((info) => {
+          const sourceLabel = info.source
+            ? formatSourceLocation(info.source)
+            : null;
+          hoverSourceCacheRef.current.set(target, sourceLabel);
+          if (requestId === hoverRequestId) {
+            overlay.setTooltip(sourceLabel || fallbackLabel);
+          }
+        })
+        .catch(() => {
+          hoverSourceCacheRef.current.set(target, null);
+          if (requestId === hoverRequestId) {
+            overlay.setTooltip(fallbackLabel);
+          }
+        });
     };
 
     const onClick = (e: MouseEvent) => {
@@ -630,7 +286,7 @@ export function useInspector() {
       document.removeEventListener("click", onClick, true);
       document.removeEventListener("keydown", onKeyDown, true);
       document.body.style.cursor = "";
-      allEls.forEach((el) => el.remove());
+      overlay.destroy();
     };
   }, [inspecting]);
 
@@ -944,8 +600,8 @@ export function useStyleEditor(selectedEl: Element | null) {
 
   const setValue = useCallback(
     (prop: CSSProp, value: string) => {
-      if (!selectedEl || !(selectedEl instanceof HTMLElement)) return;
-      selectedEl.style.setProperty(toKebab(prop), value, "important");
+      if (!selectedEl || !("style" in selectedEl)) return;
+      (selectedEl as HTMLElement).style.setProperty(toKebab(prop), value, "important");
       setOverrides((prev) => {
         const next = { ...prev, [prop]: value };
         // Sync to persistent store
@@ -1019,9 +675,9 @@ export function useStyleEditor(selectedEl: Element | null) {
 
   // Reset only the current element's changes
   const resetCurrent = useCallback(() => {
-    if (!selectedEl || !(selectedEl instanceof HTMLElement)) return;
+    if (!selectedEl || !("style" in selectedEl)) return;
     for (const prop of Object.keys(overrides) as CSSProp[]) {
-      selectedEl.style.removeProperty(toKebab(prop));
+      (selectedEl as HTMLElement).style.removeProperty(toKebab(prop));
     }
     storeRef.current.delete(selectedEl);
     const orig = readComputedStyles(selectedEl);
@@ -1040,9 +696,9 @@ export function useStyleEditor(selectedEl: Element | null) {
   // Reset ALL accumulated changes across every element
   const resetAll = useCallback(() => {
     for (const [el, entry] of storeRef.current.entries()) {
-      if (el instanceof HTMLElement) {
+      if ("style" in el) {
         for (const prop of Object.keys(entry.overrides) as CSSProp[]) {
-          el.style.removeProperty(toKebab(prop));
+          (el as HTMLElement).style.removeProperty(toKebab(prop));
         }
       }
     }

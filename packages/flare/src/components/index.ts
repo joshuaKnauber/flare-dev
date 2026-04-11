@@ -21,3 +21,4 @@ export {
   SourceReference,
   SubPanel,
 } from "./layout";
+export { PropertySections } from "./PropertySections";

@@ -15,10 +15,12 @@ export function Section({
   title,
   defaultOpen = true,
   children,
+  action,
 }: {
   title: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
+  action?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(() => {
     try {
@@ -38,10 +40,13 @@ export function Section({
 
   return (
     <div className="f-section">
-      <button className="f-section-header" onClick={toggle}>
-        <IconChevron open={open} />
-        <span>{title}</span>
-      </button>
+      <div className="f-section-header">
+        <button className="f-section-toggle" onClick={toggle}>
+          <IconChevron open={open} />
+          <span>{title}</span>
+        </button>
+        {action}
+      </div>
       {open && <div className="f-section-body">{children}</div>}
     </div>
   );

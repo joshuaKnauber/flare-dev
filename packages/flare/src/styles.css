@@ -26,11 +26,11 @@
   --f-accent-dim: rgba(255 122 0 / 0.10);
   --f-accent-subtle: rgba(255 122 0 / 0.06);
   --f-swatch-border: rgba(255 255 255 / 0.12);
-  --f-shadow-panel: 0 16px 48px rgba(0 0 0 / 0.55), 0 4px 12px rgba(0 0 0 / 0.35), 0 0 0 1px rgba(255 255 255 / 0.06);
-  --f-shadow-trigger: 0 2px 8px rgba(0 0 0 / 0.35), 0 0 0 1px rgba(255 255 255 / 0.06);
-  --f-shadow-trigger-h: 0 6px 20px rgba(0 0 0 / 0.45), 0 0 0 1px rgba(255 255 255 / 0.1);
+  --f-shadow-panel: 0 16px 48px rgba(0 0 0 / 0.25), 0 4px 12px rgba(0 0 0 / 0.15), 0 0 0 1px rgba(255 255 255 / 0.06);
+  --f-shadow-trigger: 0 2px 8px rgba(0 0 0 / 0.15), 0 0 0 1px rgba(255 255 255 / 0.06);
+  --f-shadow-trigger-h: 0 6px 20px rgba(0 0 0 / 0.2), 0 0 0 1px rgba(255 255 255 / 0.1);
   --f-ring:       0 0 0 2px rgba(255 122 0 / 0.25);
-  --f-input-shadow: inset 0 1px 2px rgba(0 0 0 / 0.2);
+  --f-input-shadow: inset 0 1px 2px rgba(0 0 0 / 0.1);
   --f-radius:     12px;
   --f-radius-sm:  6px;
   --f-font:       'Geist Mono', 'SF Mono', 'Fira Code', monospace;
@@ -80,7 +80,9 @@
     width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     height 0.3s cubic-bezier(0.16, 1, 0.3, 1),
     border-radius 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .f-shell:not(.f-expanded) {
@@ -102,6 +104,12 @@
   height: calc(100dvh - 24px);
   border-radius: 12px;
   box-shadow: var(--f-shadow-panel);
+}
+
+.f-shell.f-shell-hidden {
+  opacity: 0;
+  transform: scale(0.95);
+  pointer-events: none;
 }
 
 /* Trigger icon (centered in collapsed state) */
@@ -283,7 +291,7 @@
   background: var(--f-bg);
   border: 1px solid var(--f-border-h);
   border-radius: var(--f-radius);
-  box-shadow: 0 8px 24px rgba(0 0 0 / 0.25), 0 2px 6px rgba(0 0 0 / 0.15), 0 0 0 1px rgba(0 0 0 / 0.05);
+  box-shadow: 0 8px 24px rgba(0 0 0 / 0.12), 0 2px 6px rgba(0 0 0 / 0.08), 0 0 0 1px rgba(0 0 0 / 0.05);
   padding: 4px;
   z-index: 10;
   animation: f-pop-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -345,7 +353,7 @@
   border-radius: var(--f-radius);
   border: 1px solid var(--f-border-h);
   background: color-mix(in srgb, var(--f-bg) 92%, #000 8%);
-  box-shadow: 0 24px 48px rgba(0 0 0 / 0.4), 0 8px 16px rgba(0 0 0 / 0.2), 0 0 0 1px rgba(255 255 255 / 0.04);
+  box-shadow: 0 24px 48px rgba(0 0 0 / 0.18), 0 8px 16px rgba(0 0 0 / 0.1), 0 0 0 1px rgba(255 255 255 / 0.04);
   overflow: hidden;
   animation: f-pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -511,7 +519,7 @@
   background: var(--f-accent);
   border-color: var(--f-accent);
   color: #fff;
-  box-shadow: 0 0 16px rgba(255 122 0 / 0.3), 0 0 4px rgba(255 122 0 / 0.15);
+  box-shadow: 0 0 16px rgba(255 122 0 / 0.15), 0 0 4px rgba(255 122 0 / 0.08);
 }
 
 .f-el-none {
@@ -789,8 +797,20 @@
 .f-section-header {
   display: flex;
   align-items: center;
+  padding: 0 8px 0 0;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.f-section-header:hover {
+  background: var(--f-surface);
+}
+
+.f-section-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
   gap: 6px;
-  width: 100%;
   padding: 10px 14px;
   border: none;
   background: transparent;
@@ -801,12 +821,11 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s;
 }
 
-.f-section-header:hover {
+.f-section-toggle:hover {
   color: var(--f-text);
-  background: var(--f-surface);
 }
 
 .f-section-body {
@@ -943,7 +962,7 @@
   flex-direction: column;
   gap: 1px;
   z-index: 10;
-  box-shadow: 0 8px 24px rgba(0 0 0 / 0.3), 0 2px 6px rgba(0 0 0 / 0.15);
+  box-shadow: 0 8px 24px rgba(0 0 0 / 0.12), 0 2px 6px rgba(0 0 0 / 0.08);
   animation: f-pop-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -986,7 +1005,7 @@
   display: flex;
   flex-direction: column;
   z-index: 10;
-  box-shadow: 0 8px 24px rgba(0 0 0 / 0.3), 0 2px 6px rgba(0 0 0 / 0.15);
+  box-shadow: 0 8px 24px rgba(0 0 0 / 0.12), 0 2px 6px rgba(0 0 0 / 0.08);
   animation: f-pop-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -1110,7 +1129,7 @@
 
 .f-align-dot.active {
   background: var(--f-accent);
-  box-shadow: 0 0 8px rgba(255 122 0 / 0.4);
+  box-shadow: 0 0 8px rgba(255 122 0 / 0.2);
   transform: scale(1.2);
 }
 
@@ -1406,7 +1425,7 @@
 
 .f-swatch:hover {
   transform: scale(1.15);
-  box-shadow: 0 0 8px rgba(0 0 0 / 0.2);
+  box-shadow: 0 0 8px rgba(0 0 0 / 0.1);
 }
 
 .f-color-picker {
@@ -1575,7 +1594,7 @@
   flex-direction: column;
   gap: 1px;
   z-index: 10;
-  box-shadow: 0 8px 20px rgba(0 0 0 / 0.3), 0 2px 6px rgba(0 0 0 / 0.15);
+  box-shadow: 0 8px 20px rgba(0 0 0 / 0.12), 0 2px 6px rgba(0 0 0 / 0.08);
   min-width: 44px;
   animation: f-pop-in 0.12s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -1763,13 +1782,13 @@
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(255 122 0 / 0.25);
+  box-shadow: 0 1px 3px rgba(255 122 0 / 0.12);
   transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
 }
 
 .f-copy-btn:hover {
   opacity: 0.92;
-  box-shadow: 0 2px 8px rgba(255 122 0 / 0.35);
+  box-shadow: 0 2px 8px rgba(255 122 0 / 0.15);
 }
 
 .f-copy-btn:disabled {
@@ -1820,4 +1839,438 @@
 
 .f-cancel-btn:active {
   transform: scale(0.96);
+}
+
+/* ── Active state for toolbar buttons ────────────── */
+.f-settings-btn.f-active {
+  color: var(--f-accent);
+  background: var(--f-accent-dim);
+}
+
+/* ═══════════════════════════════════════════════════
+   CANVAS MODE — Infinite canvas with iframe embeds
+   ═══════════════════════════════════════════════════ */
+
+/* ── Shell (full-viewport backdrop + layout) ─────── */
+.f-canvas-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483640;
+  display: flex;
+  background: var(--f-bg);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.f-canvas-shell.f-canvas-visible {
+  opacity: 1;
+}
+
+/* ── Canvas viewport (inset, rounded) ────────────── */
+.f-canvas {
+  flex: 1;
+  margin: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--f-border);
+  background: #0e0e11;
+  overflow: hidden;
+  cursor: default;
+  position: relative;
+}
+
+:host(.f-light) .f-canvas {
+  background: #e8e8ed;
+}
+
+/* ── Right panel ─────────────────────────────────── */
+.f-canvas-panel {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--f-font-label);
+  font-size: 12px;
+  color: var(--f-text);
+  overflow: hidden;
+  padding: 12px 0;
+}
+
+/* Space held — hand tool: grab cursor, disable iframe interaction */
+.f-canvas.f-canvas-space {
+  cursor: grab;
+}
+
+.f-canvas.f-canvas-space .f-canvas-iframe {
+  pointer-events: none;
+}
+
+.f-canvas.f-canvas-panning {
+  cursor: grabbing;
+}
+
+/* ── Canvas surface (transformed layer) ──────────── */
+.f-canvas-surface {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* ── Frame (iframe wrapper) ──────────────────────── */
+.f-canvas-frame {
+  position: absolute;
+  contain: layout style;
+  box-shadow:
+    0 24px 80px rgba(0 0 0 / 0.2),
+    0 8px 24px rgba(0 0 0 / 0.1),
+    0 0 0 1px rgba(255 255 255 / 0.06);
+  animation: f-canvas-frame-enter 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+:host(.f-light) .f-canvas-frame {
+  box-shadow:
+    0 24px 80px rgba(0 0 0 / 0.08),
+    0 8px 24px rgba(0 0 0 / 0.04),
+    0 0 0 1px rgba(0 0 0 / 0.08);
+}
+
+/* ── Active frame — blue ring + interactive iframe ── */
+.f-canvas-frame.f-frame-active {
+  outline: calc(2px * var(--f-inv-zoom, 1)) solid #3b82f6;
+}
+
+.f-canvas-frame.f-frame-active .f-canvas-frame-label {
+  color: #3b82f6;
+}
+
+
+/* ── Inspecting state — all iframes interactive ──── */
+.f-canvas.f-canvas-inspecting .f-canvas-iframe {
+  pointer-events: auto;
+}
+
+.f-canvas.f-canvas-inspecting {
+  cursor: crosshair;
+}
+
+/* ── Commenting state ────────────────────────────── */
+.f-canvas.f-canvas-commenting .f-canvas-iframe {
+  pointer-events: auto;
+}
+
+.f-canvas.f-canvas-commenting {
+  cursor: crosshair;
+}
+
+/* ── Comment pins ────────────────────────────────── */
+.f-comment-pin {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  background: #3b82f6;
+  color: #fff;
+  font-family: var(--f-font-label);
+  font-size: 11px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  cursor: pointer;
+  transform: scale(var(--f-inv-zoom, 1)) translate(-2px, -28px);
+  transform-origin: left bottom;
+  box-shadow: 0 2px 8px rgba(0 0 0 / 0.15);
+  z-index: 2;
+  transition: transform 0.1s;
+}
+
+.f-comment-pin:hover {
+  transform: scale(var(--f-inv-zoom, 1)) translate(-2px, -28px) scale(1.15);
+}
+
+/* ── Comment input (floating) ────────────────────── */
+.f-comment-input {
+  position: fixed;
+  z-index: 2147483647;
+  width: 260px;
+  animation: f-pop-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.f-comment-textarea {
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 10px;
+  border: 1px solid #3b82f6;
+  border-radius: var(--f-radius-sm);
+  background: var(--f-bg);
+  color: var(--f-text);
+  font-family: var(--f-font-label);
+  font-size: 12px;
+  line-height: 1.45;
+  resize: vertical;
+  outline: none;
+  box-shadow: 0 4px 16px rgba(0 0 0 / 0.12), 0 0 0 3px rgba(59 130 246 / 0.12);
+}
+
+.f-comment-textarea::placeholder {
+  color: var(--f-text-mute);
+}
+
+.f-comment-textarea:focus {
+  border-color: #3b82f6;
+}
+
+/* ── Comment list (sidebar) ──────────────────────── */
+.f-comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.f-comment-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--f-radius-sm);
+  background: var(--f-surface);
+  border: 1px solid var(--f-border);
+}
+
+.f-comment-list-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.f-comment-list-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.f-comment-list-selector {
+  font-family: var(--f-font);
+  font-size: 10px;
+  color: var(--f-text-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.f-comment-list-text {
+  font-size: 11px;
+  color: var(--f-text);
+  line-height: 1.4;
+  margin-top: 2px;
+  word-break: break-word;
+}
+
+@keyframes f-canvas-frame-enter {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.f-canvas-frame-label {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  padding-bottom: calc(6px * var(--f-inv-zoom, 1));
+  font-family: var(--f-font-label);
+  font-size: calc(12px * var(--f-inv-zoom, 1));
+  color: rgba(255 255 255 / 0.4);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: left bottom;
+}
+
+:host(.f-light) .f-canvas-frame-label {
+  color: rgba(0 0 0 / 0.35);
+}
+
+/* ── Frame content (clips pins + guides on scroll) ─ */
+.f-canvas-frame-content {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* ── Frame duplicate button ───────────────────────── */
+.f-canvas-frame-dup {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: calc(12px * var(--f-inv-zoom, 1));
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--f-border);
+  border-radius: var(--f-radius-sm);
+  background: var(--f-bg);
+  color: var(--f-text-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: scale(var(--f-inv-zoom, 1));
+  transform-origin: left top;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.12s, color 0.12s, border-color 0.12s;
+  box-shadow: 0 2px 8px rgba(0 0 0 / 0.1), 0 0 0 1px rgba(255 255 255 / 0.04);
+}
+
+.f-canvas-frame:hover .f-canvas-frame-dup {
+  opacity: 1;
+}
+
+.f-canvas-frame-dup:hover {
+  background: var(--f-surface-2);
+  color: var(--f-text);
+  border-color: var(--f-border-h);
+}
+
+.f-canvas-frame-dup:active {
+  transform: scale(var(--f-inv-zoom, 1)) scale(0.9);
+}
+
+/* ── Frame push button ────────────────────────────── */
+.f-canvas-frame-push {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: calc(10px * var(--f-inv-zoom, 1));
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--f-accent);
+  border-radius: var(--f-radius-sm);
+  background: var(--f-accent);
+  color: #fff;
+  font-family: var(--f-font-label);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  pointer-events: auto;
+  transform: scale(var(--f-inv-zoom, 1));
+  transform-origin: right top;
+  box-shadow: 0 2px 8px rgba(255 122 0 / 0.15);
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.f-canvas-frame-push:hover {
+  opacity: 0.9;
+}
+
+.f-canvas-frame-push:active {
+  transform: scale(var(--f-inv-zoom, 1)) scale(0.95);
+}
+
+.f-canvas-iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+  pointer-events: none;
+}
+
+
+/* ── Canvas top-right controls ───────────────────── */
+.f-canvas-topright {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 1;
+  animation: f-pop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both 0.3s;
+}
+
+.f-canvas-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: var(--f-radius-sm);
+  background: transparent;
+  color: var(--f-text-mute);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+
+.f-canvas-close:hover {
+  background: var(--f-bg);
+  color: var(--f-text);
+  border-color: var(--f-border);
+  box-shadow: 0 2px 8px rgba(0 0 0 / 0.1), 0 0 0 1px rgba(255 255 255 / 0.04);
+}
+
+.f-canvas-close:active {
+  transform: scale(0.9);
+}
+
+/* ── Canvas HUD (zoom controls) ──────────────────── */
+.f-canvas-hud {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--f-bg);
+  border: 1px solid var(--f-border);
+  border-radius: var(--f-radius);
+  box-shadow:
+    0 4px 16px rgba(0 0 0 / 0.3),
+    0 0 0 1px rgba(255 255 255 / 0.04);
+  font-family: var(--f-font-label);
+  animation: f-pop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both 0.3s;
+}
+
+.f-canvas-hud-icon {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--f-radius-sm);
+  background: transparent;
+  color: var(--f-text-dim);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, transform 0.1s;
+}
+
+.f-canvas-hud-icon:hover {
+  background: var(--f-surface-2);
+  color: var(--f-text);
+}
+
+.f-canvas-hud-icon:active {
+  transform: scale(0.9);
+}
+
+.f-canvas-hud-icon.f-active {
+  color: var(--f-accent);
+  background: var(--f-accent-dim);
+}
+
+
+.f-canvas-hud-zoom {
+  padding: 5px 10px;
+  font-size: 11px;
+  color: var(--f-text-mute);
+  min-width: 48px;
+  text-align: center;
 }
