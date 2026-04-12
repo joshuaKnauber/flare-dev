@@ -1,5 +1,5 @@
 ---
-const installSnippet = `npm install -D flare-dev`;
+const skillSnippet = `npx skills add joshuaKnauber/flare-dev`;
 
 const viteSnippet = `<span class="dim">// vite.config.ts</span>
 <span class="kw">import</span> flare <span class="kw">from</span> <span class="str">"flare-dev/vite"</span>
@@ -8,37 +8,9 @@ const viteSnippet = `<span class="dim">// vite.config.ts</span>
   plugins: [flare()],
 })`;
 
-const scriptAlwaysSnippet = `<span class="dim">&lt;!-- Load on every page, including production --&gt;</span>
-&lt;script src=<span class="str">"https://unpkg.com/flare-dev/dist/flare.js"</span>&gt;&lt;/script&gt;`;
+const scriptSnippet = `&lt;script src=<span class="str">"https://unpkg.com/flare-dev/dist/flare.js"</span>&gt;&lt;/script&gt;`;
 
-const scriptDevSnippet = `<span class="dim">&lt;!-- Or, load only on localhost to save bandwidth --&gt;</span>
-&lt;script&gt;
-  <span class="kw">if</span> ([<span class="str">"localhost"</span>].includes(location.hostname)) {
-    <span class="kw">const</span> s = document.createElement(<span class="str">"script"</span>);
-    s.src = <span class="str">"https://unpkg.com/flare-dev/dist/flare.js"</span>;
-    document.head.appendChild(s);
-  }
-&lt;/script&gt;`;
-
-const bridgeSnippet = `<span class="dim"># Start the bridge so Flare can push changes to your agent</span>
-npx flare-dev bridge`;
-
-const claudePrompt = `Set up flare-dev for visual CSS editing.
-
-npm install -D flare-dev
-
-If this project uses Vite, add the plugin to vite.config.ts:
-  import flare from "flare-dev/vite"
-  plugins: [flare()]
-
-If not using Vite, add this script tag to the HTML to only load on localhost:
-  &lt;script&gt;
-    if (["localhost"].includes(location.hostname)) {
-      const s = document.createElement("script");
-      s.src = "https://unpkg.com/flare-dev/dist/flare.js";
-      document.head.appendChild(s);
-    }
-  &lt;/script&gt;`;
+const bridgeSnippet = `npx flare-dev bridge`;
 ---
 
 <div class="page">
@@ -57,83 +29,72 @@ If not using Vite, add this script tag to the HTML to only load on localhost:
     <button class="cta plausible-event-name=Try+It" id="try-btn">Try it here</button>
     <p class="mobile-hint">Best experienced on desktop</p>
 
-    <section class="codeblock">
-      <div class="cb-header">
-        <div class="cb-tabs" role="tablist">
-          <button class="cb-tab active plausible-event-name=Claude+Code" data-tab="claude" role="tab" aria-selected="true">Claude Code</button>
-          <button class="cb-tab plausible-event-name=Vite+Plugin" data-tab="vite" role="tab" aria-selected="false">Vite</button>
-          <button class="cb-tab plausible-event-name=Script+Tag" data-tab="script" role="tab" aria-selected="false">Script Tag</button>
+    <div class="video-wrap">
+      <video src="/demo.mp4" autoplay loop muted playsinline></video>
+    </div>
+
+    <section class="get-started">
+      <div class="gs-card">
+        <div class="gs-row" data-copy="skill">
+          <span class="gs-num">1</span>
+          <div class="gs-text">
+            <span class="gs-label">Install the skill in your terminal</span>
+            <pre set:html={skillSnippet} />
+          </div>
+          <button class="gs-copy plausible-event-name=Copy" aria-label="Copy">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
+        </div>
+        <div class="gs-divider"></div>
+        <div class="gs-row" data-copy="run">
+          <span class="gs-num">2</span>
+          <div class="gs-text">
+            <span class="gs-label">Run in Claude Code, Cursor, or any agent</span>
+            <pre>/flare-dev</pre>
+          </div>
+          <button class="gs-copy plausible-event-name=Copy" aria-label="Copy">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
         </div>
       </div>
-      <div class="cb-body">
-        <div class="panel active" id="panel-claude">
-          <div class="snippet" data-copy="claude">
-            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
-            <pre set:html={claudePrompt} />
-          </div>
+      <p class="gs-compat">Works with Claude Code, Cursor, Windsurf, and any AI agent.</p>
+      <button class="gs-alt-toggle" id="alt-toggle">Manual setup &darr;</button>
+      <div class="alt-panels" id="alt-panels">
+        <p class="alt-note">The skill (step 1 above) is still needed for agent instructions.</p>
+        <div class="alt-tabs" role="tablist">
+          <button class="cb-tab active plausible-event-name=Vite+Plugin" data-tab="vite" role="tab" aria-selected="true">Vite Plugin</button>
+          <button class="cb-tab plausible-event-name=Script+Tag" data-tab="script" role="tab" aria-selected="false">Script Tag</button>
         </div>
-        <div class="panel" id="panel-vite">
-          <div class="step-label">Install</div>
-          <div class="snippet" data-copy="install">
-            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
-            <pre set:html={installSnippet} />
+        <div class="cb-body">
+          <div class="panel active" id="panel-vite">
+            <div class="step-label">Add the plugin</div>
+            <div class="snippet" data-copy="vite">
+              <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
+              <pre set:html={viteSnippet} />
+            </div>
+            <div class="snippet-divider"></div>
+            <div class="step-label">Start the bridge</div>
+            <div class="snippet" data-copy="bridge">
+              <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
+              <pre set:html={bridgeSnippet} />
+            </div>
           </div>
-          <div class="snippet-divider"></div>
-          <div class="step-label">Add the Vite plugin</div>
-          <div class="snippet" data-copy="vite">
-            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
-            <pre set:html={viteSnippet} />
-          </div>
-          <div class="snippet-divider"></div>
-          <div class="step-label">Start the bridge</div>
-          <div class="snippet" data-copy="bridge">
-            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
-            <pre set:html={bridgeSnippet} />
-          </div>
-        </div>
-        <div class="panel" id="panel-script">
-          <div class="step-label">Install</div>
-          <div class="snippet" data-copy="install">
-            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
-            <pre set:html={installSnippet} />
-          </div>
-          <div class="snippet-divider"></div>
-          <div class="step-label">Add a script tag</div>
-          <div class="snippet" data-copy="scriptAlways">
-            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
-            <pre set:html={scriptAlwaysSnippet} />
-          </div>
-          <div class="snippet-divider"></div>
-          <div class="snippet" data-copy="scriptDev">
-            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
-            <pre set:html={scriptDevSnippet} />
-          </div>
-          <div class="snippet-divider"></div>
-          <div class="step-label">Start the bridge</div>
-          <div class="snippet" data-copy="bridge">
-            <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
-            <pre set:html={bridgeSnippet} />
+          <div class="panel" id="panel-script">
+            <div class="step-label">Add a script tag</div>
+            <div class="snippet" data-copy="script">
+              <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
+              <pre set:html={scriptSnippet} />
+            </div>
+            <div class="snippet-divider"></div>
+            <div class="step-label">Start the bridge</div>
+            <div class="snippet" data-copy="bridge">
+              <button class="snippet-copy plausible-event-name=Copy" aria-label="Copy">Copy</button>
+              <pre set:html={bridgeSnippet} />
+            </div>
           </div>
         </div>
       </div>
     </section>
-
-    <div class="steps">
-      <div class="step">
-        <span class="num">1</span>
-        <span class="txt">Edit visually</span>
-      </div>
-      <span class="arrow">&rarr;</span>
-      <div class="step">
-        <span class="num">2</span>
-        <span class="txt">Push to agent</span>
-      </div>
-      <span class="arrow">&rarr;</span>
-      <div class="step">
-        <span class="num">3</span>
-        <span class="txt">Applied to source</span>
-      </div>
-    </div>
 
     <div class="links">
       <a href="https://github.com/joshuaKnauber/flare-dev" class="social plausible-event-name=Github" target="_blank" rel="noopener" aria-label="GitHub">
@@ -155,6 +116,22 @@ If not using Vite, add this script tag to the HTML to only load on localhost:
     color: #111;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ── Video ────────────────────────────── */
+  .video-wrap {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 40px;
+    animation: fadeUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .video-wrap video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   /* ── Hero ─────────────────────────────── */
@@ -250,27 +227,149 @@ If not using Vite, add this script tag to the HTML to only load on localhost:
     }
   }
 
-  /* ── Code Block ──────────────────────── */
-  .codeblock {
+  /* ── Get Started ────────────────────── */
+  .get-started {
     width: 100%;
-    margin-top: 52px;
-    border: 1px solid #e5e5e5;
-    border-radius: 12px;
-    overflow: hidden;
+    margin-top: 48px;
     animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.16s both;
   }
 
-  .cb-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 8px 0 4px;
-    background: #fff;
-    border-bottom: 1px solid #eeeeee;
+  .gs-card {
+    border: 1px solid #e8e8e8;
+    border-radius: 12px;
+    overflow: hidden;
   }
 
-  .cb-tabs {
+  .gs-row {
     display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .gs-divider {
+    height: 1px;
+    background: #e8e8e8;
+  }
+
+  .gs-num {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: #ff7a00;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #ffd9b3;
+    border-radius: 6px;
+    background: #fff7ee;
+    flex-shrink: 0;
+  }
+
+  .gs-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .gs-label {
+    display: block;
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 4px;
+    letter-spacing: -0.005em;
+  }
+
+  .gs-row pre {
+    margin: 0;
+    font-family: 'Geist Mono', monospace;
+    font-size: 13.5px;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .gs-copy {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background: #fafafa;
+    color: #bbb;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .gs-copy:hover {
+    border-color: #ccc;
+    color: #666;
+    background: #f0f0f0;
+  }
+
+  .gs-copy.copied {
+    color: #ff7a00;
+    border-color: #ffd9b3;
+    background: #fff7ee;
+  }
+
+  .gs-compat {
+    font-size: 12.5px;
+    color: #bbb;
+    text-align: center;
+    margin: 20px 0 0;
+    letter-spacing: -0.005em;
+  }
+
+  .gs-alt-toggle {
+    font-family: 'Geist', sans-serif;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #ccc;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    margin: 12px auto 0;
+    display: block;
+    transition: color 0.15s;
+    letter-spacing: -0.005em;
+  }
+
+  .gs-alt-toggle:hover {
+    color: #999;
+  }
+
+  .alt-note {
+    font-size: 12.5px;
+    color: #aaa;
+    margin: 0;
+    padding: 12px 16px 0;
+  }
+
+  .alt-panels {
+    display: none;
+    margin-top: 16px;
+    border: 1px solid #e5e5e5;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .alt-panels.open {
+    display: block;
+    animation: panelIn 0.15s ease;
+  }
+
+  .alt-tabs {
+    display: flex;
+    padding: 0 4px;
+    background: #fff;
+    border-bottom: 1px solid #eee;
   }
 
   .cb-tab {
@@ -378,48 +477,6 @@ If not using Vite, add this script tag to the HTML to only load on localhost:
   .cb-body :global(.str) { color: #c56e00; }
   .cb-body :global(.dim) { color: #b0b0b0; }
 
-  /* ── Steps ───────────────────────────── */
-  .steps {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 20px;
-    margin-top: 52px;
-    animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.24s both;
-  }
-
-  .step {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-  }
-
-  .num {
-    font-family: 'Geist Mono', monospace;
-    font-size: 11px;
-    font-weight: 600;
-    color: #ff7a00;
-    width: 22px;
-    height: 22px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1.5px solid #ffd9b3;
-    border-radius: 6px;
-    background: #fff7ee;
-  }
-
-  .txt {
-    font-size: 13.5px;
-    color: #777;
-    letter-spacing: -0.01em;
-  }
-
-  .arrow {
-    color: #ddd;
-    font-size: 13px;
-  }
-
   /* ── Social Links ─────────────────────── */
   .links {
     display: flex;
@@ -486,95 +543,57 @@ If not using Vite, add this script tag to the HTML to only load on localhost:
       font-size: 12px;
     }
 
-    .steps {
-      flex-direction: column;
-      gap: 10px;
-      margin-top: 40px;
-    }
-
-    .arrow {
-      transform: rotate(90deg);
-    }
   }
 </style>
 
 <script>
+  // Tab switching
   const tabs = document.querySelectorAll<HTMLButtonElement>('.cb-tab');
   const panels = document.querySelectorAll<HTMLElement>('.panel');
 
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
       const target = tab.dataset.tab;
-
-      tabs.forEach(t => {
-        t.classList.remove('active');
-        t.setAttribute('aria-selected', 'false');
-      });
+      tabs.forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
       tab.classList.add('active');
       tab.setAttribute('aria-selected', 'true');
-
       panels.forEach(p => p.classList.remove('active'));
       document.getElementById(`panel-${target}`)?.classList.add('active');
     });
   });
 
+  // Toggle alternative methods
+  document.getElementById('alt-toggle')?.addEventListener('click', () => {
+    document.getElementById('alt-panels')?.classList.toggle('open');
+  });
+
+  // Copy texts
   const copyTexts: Record<string, string> = {
-    claude: `Set up flare-dev for visual CSS editing.
-
-npm install -D flare-dev
-
-If this project uses Vite, add the plugin to vite.config.ts:
-  import flare from "flare-dev/vite"
-  plugins: [flare()]
-
-If not using Vite, add this script tag to the HTML to only load on localhost:
-  <script>
-    if (["localhost"].includes(location.hostname)) {
-      const s = document.createElement("script");
-      s.src = "https://unpkg.com/flare-dev/dist/flare.js";
-      document.head.appendChild(s);
-    }
-  <\/script>`,
-    install: `npm install -D flare-dev`,
-    vite: `// vite.config.ts
-import flare from "flare-dev/vite"
-
-export default defineConfig({
-  plugins: [flare()],
-})`,
-    scriptAlways: `<script src="https://unpkg.com/flare-dev/dist/flare.js"><\/script>`,
-    scriptDev: `<script>
-  if (["localhost"].includes(location.hostname)) {
-    const s = document.createElement("script");
-    s.src = "https://unpkg.com/flare-dev/dist/flare.js";
-    document.head.appendChild(s);
-  }
-<\/script>`,
+    skill: `npx skills add joshuaKnauber/flare-dev`,
+    run: `/flare-dev`,
+    vite: `// vite.config.ts\nimport flare from "flare-dev/vite"\n\nexport default defineConfig({\n  plugins: [flare()],\n})`,
+    script: `<script src="https://unpkg.com/flare-dev/dist/flare.js"><\/script>`,
     bridge: `npx flare-dev bridge`,
   };
 
+  // Try button
   document.getElementById('try-btn')?.addEventListener('click', () => {
     try {
       const val = String(Date.now());
       localStorage.setItem('flare-open', val);
-      // storage event doesn't fire on the originating tab, so dispatch manually
       window.dispatchEvent(new StorageEvent('storage', { key: 'flare-open', newValue: val }));
     } catch {}
   });
 
-  document.querySelectorAll<HTMLButtonElement>('.snippet-copy').forEach(btn => {
+  // Copy buttons (both .snippet-copy and .gs-copy)
+  document.querySelectorAll<HTMLButtonElement>('.snippet-copy, .gs-copy').forEach(btn => {
     btn.addEventListener('click', () => {
-      const key = btn.closest('.snippet')?.getAttribute('data-copy');
+      const container = btn.closest('[data-copy]');
+      const key = container?.getAttribute('data-copy');
       if (!key || !copyTexts[key]) return;
-
       navigator.clipboard.writeText(copyTexts[key]);
-      const original = btn.textContent;
-      btn.textContent = 'Copied';
       btn.classList.add('copied');
-      setTimeout(() => {
-        btn.textContent = original;
-        btn.classList.remove('copied');
-      }, 1800);
+      setTimeout(() => { btn.classList.remove('copied'); }, 1800);
     });
   });
 </script>
