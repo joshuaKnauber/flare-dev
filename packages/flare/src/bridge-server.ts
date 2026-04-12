@@ -87,8 +87,9 @@ function isAgentPushRequest(value: unknown): value is AgentPushRequest {
   );
 }
 
+let _fileSeq = 0;
 function toTimestampFileName(isoString: string) {
-  return `${isoString.replace(/[:.]/g, "-")}.json`;
+  return `${isoString.replace(/[:.]/g, "-")}-${_fileSeq++}.json`;
 }
 
 export function createBridgeServer(

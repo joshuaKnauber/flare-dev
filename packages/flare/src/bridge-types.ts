@@ -10,7 +10,10 @@ export interface FlareElementChange {
   textSnippet?: string;
   comment?: string;
   source?: string;
+  componentStack?: string[];
   changes: FlareStyleChange[];
+  variantSource?: string;
+  variantExportName?: string;
 }
 
 export interface FlareSessionSnapshot {

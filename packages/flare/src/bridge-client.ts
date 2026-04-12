@@ -52,6 +52,8 @@ export interface AgentDomResponse {
   selector: string;
   outerHTML: string;
   variantRequestId?: string;
+  variantSource?: string;
+  variantExportName?: string;
 }
 
 export async function pollAgentResponses(): Promise<AgentDomResponse[]> {

@@ -8,6 +8,6 @@
     "rootDir": "./src",
     "outDir": "./dist"
   },
-  "include": ["src/cli.ts", "src/bridge-server.ts", "src/bridge-types.ts", "src/watcher.ts", "src/inbox-path.ts"],
+  "include": ["src/cli.ts", "src/bridge-server.ts", "src/bridge-types.ts", "src/watcher.ts", "src/inbox-path.ts", "src/render.ts"],
   "exclude": []
 }

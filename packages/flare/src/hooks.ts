@@ -40,66 +40,13 @@ export function useTheme(shadowHost: HTMLElement) {
 
 // ── Drag / Position ───────────────────────────────
 const POS_KEY = "flare-position";
-const SIDE_KEY = "flare-side";
-type PanelSide = "right" | "left";
 
-const COLLAPSED_SIZE = 40;
 const EXPANDED_WIDTH = 320;
 const EXPANDED_MARGIN = 12;
-const COLLAPSED_MARGIN = 16;
 const DRAG_THRESHOLD = 3;
 
 function clampVal(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
-}
-
-function clampPos(
-  x: number,
-  y: number,
-  isExpanded: boolean,
-): { x: number; y: number } {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  if (isExpanded) {
-    const panelH = vh - EXPANDED_MARGIN * 2;
-    return {
-      x: clampVal(x, EXPANDED_MARGIN, vw - EXPANDED_WIDTH - EXPANDED_MARGIN),
-      y: clampVal(y, EXPANDED_MARGIN, vh - panelH - EXPANDED_MARGIN),
-    };
-  }
-  return {
-    x: clampVal(x, EXPANDED_MARGIN, vw - COLLAPSED_SIZE - EXPANDED_MARGIN),
-    y: clampVal(y, EXPANDED_MARGIN, vh - COLLAPSED_SIZE - EXPANDED_MARGIN),
-  };
-}
-
-function loadSide(): PanelSide {
-  try {
-    const s = localStorage.getItem(SIDE_KEY);
-    if (s === "left" || s === "right") return s;
-    // Migrate from old key that stored "left"/"right"
-    const old = localStorage.getItem(POS_KEY);
-    if (old === "left" || old === "right") return old;
-  } catch {}
-  return "right";
-}
-
-function loadPos(side: PanelSide): { x: number; y: number } {
-  try {
-    const raw = localStorage.getItem(POS_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (typeof parsed.x === "number" && typeof parsed.y === "number")
-        return parsed;
-    }
-  } catch {}
-  return {
-    x:
-      side === "right"
-        ? window.innerWidth - COLLAPSED_SIZE - COLLAPSED_MARGIN
-        : COLLAPSED_MARGIN,
-    y: COLLAPSED_MARGIN,
-  };
 }
 
 function savePos(p: { x: number; y: number }) {
@@ -109,105 +56,81 @@ function savePos(p: { x: number; y: number }) {
 }
 
 export function useDrag(expanded: boolean) {
-  const [pos, setPos] = useState(() => loadPos(loadSide()));
+  const [hasMoved, setHasMoved] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
 
   const dragging = useRef(false);
   const moved = useRef(false);
   const dragStart = useRef({ px: 0, py: 0, ox: 0, oy: 0 });
   const shellRef = useRef<HTMLDivElement | null>(null);
-  const expandedRef = useRef(expanded);
   const posRef = useRef(pos);
   posRef.current = pos;
-  expandedRef.current = expanded;
 
-  // Remember collapsed position so we can restore it on close
-  const collapsedPos = useRef<{ x: number; y: number } | null>(null);
-
-  // Recalculate on expand / collapse
-  const prevExpanded = useRef(expanded);
+  // Restore saved position when expanding
   useEffect(() => {
-    if (prevExpanded.current === expanded) return;
-    prevExpanded.current = expanded;
-    setPos((prev) => {
-      let next: { x: number; y: number };
-      if (expanded) {
-        // Save where the pill was, then center the panel on it
-        collapsedPos.current = prev;
-        next = clampPos(prev.x - (EXPANDED_WIDTH - COLLAPSED_SIZE) / 2, prev.y, true);
-      } else {
-        // Restore the pill to where it was before expanding
-        next = collapsedPos.current
-          ? clampPos(collapsedPos.current.x, collapsedPos.current.y, false)
-          : clampPos(prev.x + (EXPANDED_WIDTH - COLLAPSED_SIZE) / 2, prev.y, false);
-        collapsedPos.current = null;
-      }
-      savePos(next);
-      return next;
-    });
+    if (expanded) {
+      try {
+        const raw = localStorage.getItem(POS_KEY);
+        if (raw) {
+          const p = JSON.parse(raw);
+          if (typeof p.x === "number" && typeof p.y === "number") {
+            setPos(p);
+            setHasMoved(true);
+          }
+        }
+      } catch {}
+    }
   }, [expanded]);
 
-  // Clamp on window resize
-  useEffect(() => {
-    const onResize = () => {
-      setPos((prev) => {
-        const c = clampPos(prev.x, prev.y, expandedRef.current);
-        savePos(c);
-        return c;
-      });
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  // Pointer-down handler (attach to drag surface)
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return;
     dragging.current = true;
     moved.current = false;
-    const cur = posRef.current;
-    dragStart.current = { px: e.clientX, py: e.clientY, ox: cur.x, oy: cur.y };
 
     const shell = shellRef.current;
-    if (shell) shell.classList.add("f-dragging");
+    if (!shell) return;
+
+    // If first drag, start from the element's current CSS position
+    const rect = shell.getBoundingClientRect();
+    const cur = posRef.current;
+    const startX = hasMoved ? cur.x : rect.left;
+    const startY = hasMoved ? cur.y : rect.top;
+    if (!hasMoved) setPos({ x: startX, y: startY });
+
+    dragStart.current = { px: e.clientX, py: e.clientY, ox: startX, oy: startY };
+    shell.classList.add("f-dragging");
 
     const onMove = (ev: PointerEvent) => {
       const dx = ev.clientX - dragStart.current.px;
       const dy = ev.clientY - dragStart.current.py;
-      if (
-        !moved.current &&
-        Math.abs(dx) < DRAG_THRESHOLD &&
-        Math.abs(dy) < DRAG_THRESHOLD
-      )
-        return;
+      if (!moved.current && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
       moved.current = true;
-      const isExp = expandedRef.current;
-      const clamped = clampPos(
-        dragStart.current.ox + dx,
-        isExp ? EXPANDED_MARGIN : dragStart.current.oy + dy,
-        isExp,
-      );
-      setPos(clamped);
+      if (!hasMoved) setHasMoved(true);
+      const x = clampVal(dragStart.current.ox + dx, EXPANDED_MARGIN, window.innerWidth - EXPANDED_WIDTH - EXPANDED_MARGIN);
+      const y = EXPANDED_MARGIN;
+      setPos({ x, y });
     };
 
     const onUp = () => {
       dragging.current = false;
-      if (shell) shell.classList.remove("f-dragging");
+      shell.classList.remove("f-dragging");
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
-      // If dragged while expanded, discard saved collapsed position
-      // so collapse will center the pill on the new panel position
-      if (moved.current && expandedRef.current) collapsedPos.current = null;
-      setPos((p) => {
-        savePos(p);
-        return p;
-      });
+      if (moved.current) {
+        setHasMoved(true);
+        setPos((p: { x: number; y: number }) => { savePos(p); return p; });
+      }
     };
 
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
+  }, [hasMoved]);
+
+  const resetPosition = useCallback(() => {
+    setHasMoved(false);
   }, []);
 
-  return { pos, onPointerDown, moved, shellRef };
+  return { pos, onPointerDown, moved, hasMoved, shellRef, resetPosition };
 }
 
 // ── Inspector ──────────────────────────────────────
@@ -693,6 +616,32 @@ export function useStyleEditor(selectedEl: Element | null) {
     setRevision((r) => r + 1);
   }, [selectedEl, overrides]);
 
+  // Reset a specific set of element entries (e.g. per-frame in canvas)
+  const resetEntries = useCallback((entries: ElementEntry[]) => {
+    for (const entry of entries) {
+      const el = entry.el;
+      if ("style" in el) {
+        for (const prop of Object.keys(entry.overrides) as CSSProp[]) {
+          (el as HTMLElement).style.removeProperty(toKebab(prop));
+        }
+      }
+      storeRef.current.delete(el);
+    }
+    if (selectedEl) {
+      const stored = storeRef.current.get(selectedEl);
+      if (stored) {
+        setOriginal(stored.original);
+        setOverrides(stored.overrides);
+        setCommentState(stored.comment);
+      } else {
+        setOverrides({});
+        setOriginal(readComputedStyles(selectedEl));
+        setCommentState("");
+      }
+    }
+    setRevision((r) => r + 1);
+  }, [selectedEl]);
+
   // Reset ALL accumulated changes across every element
   const resetAll = useCallback(() => {
     for (const [el, entry] of storeRef.current.entries()) {
@@ -776,6 +725,7 @@ export function useStyleEditor(selectedEl: Element | null) {
     overrides,
     original,
     resetCurrent,
+    resetEntries,
     resetAll,
     getAllChanges,
     totalChangeCount,

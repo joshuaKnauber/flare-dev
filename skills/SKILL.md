@@ -137,9 +137,13 @@ Each change entry looks like:
 - If a design token or CSS variable exists for the value (e.g., `--color-primary`), use that instead of a raw value.
 - The `before` value helps you find the right property to change. Search for it in the source.
 
+### Comments (panel mode)
+
+When an entry has a `comment` without a `[CANVAS]` prefix, it's a panel mode comment. Apply the changes (or the comment instruction) directly to the source code.
+
 ### Content comments (canvas mode)
 
-When `changes` is empty but `comment` is present, the user is describing a content or structural change from canvas mode. The comment includes the element's current HTML:
+When the `comment` starts with `[CANVAS]`, this is a canvas mode content comment. The comment includes the element's current HTML:
 
 ```json
 {
@@ -165,7 +169,7 @@ curl -X POST http://127.0.0.1:4318/api/agent/respond \
 
 The response fields:
 - `origin` — the app origin (same as in the push request)
-- `selector` — CSS selector to find the element in the iframe
+- `selector` — the `[data-flare-id="..."]` selector from the request. Flare stamps target elements with a `data-flare-id` attribute for reliable lookup — always use the exact selector from the push request, don't construct your own CSS selector
 - `outerHTML` — the complete replacement HTML for that element
 
 Flare will pick up the response and replace the element's `outerHTML` in the canvas frame. The user can then compare versions and eventually push the frame's style changes to source when they're ready.
@@ -204,20 +208,72 @@ The user's dev server will hot-reload with your changes, and they'll see the res
 
 When the comment starts with `[VARIANT REQUEST]`, the user wants multiple alternative versions of an element. The comment includes how many variants to generate, a prompt describing the direction, and a request ID.
 
-For each variant, send a separate response with the `variantRequestId` field set:
+You write real components using the project's framework, render them to HTML, and send each variant to the bridge. Flare injects the HTML into variant iframes for side-by-side comparison.
+
+#### Step 1: Understand the design context
+
+Read the source file containing the element being varied. Use the `source` field if available, otherwise search the codebase for the `textSnippet` or selector class names. Understand the color palette, font choices, spacing patterns, component structure, and design tokens in use. If the project has a Tailwind config or theme file, read that too.
+
+#### Step 2: Write all variants in one file
+
+Create `_flare_variants.tsx` in the project's source directory. **Always include `import React from "react"` at the top** — the render step uses `npx tsx` which requires it. Import the project's actual components, styles, and tokens. Write all variants as separate named exports:
+
+```tsx
+// _flare_variants.tsx
+import React from "react";
+import { Button } from "./components/ui/button";
+
+export function Variant1() {
+  return (
+    <section className="py-24 bg-gradient-to-b from-slate-50 to-white">
+      <h1 className="text-5xl font-bold tracking-tight">Ship faster</h1>
+      {/* ... */}
+    </section>
+  );
+}
+
+export function Variant2() {
+  return (
+    <section className="py-32 bg-black text-white">
+      <h1 className="text-6xl font-extrabold">Ship faster</h1>
+      {/* ... */}
+    </section>
+  );
+}
+```
+
+**CSS constraint:** The variant HTML is injected into an iframe that has the page's existing CSS. Only use CSS classes that already appear on the page. If you need new styles, use inline `style` attributes. Check the element context HTML in the request to see which classes are available.
+
+#### Step 3: Render and send
+
+**For React projects**, use the built-in render command. It renders each variant via `npx tsx` + `renderToStaticMarkup`, then POSTs the HTML and your component source code to the bridge:
+
+```bash
+npx flare-dev render _flare_variants.tsx \
+  --origin "http://localhost:5173" \
+  --selector '[data-flare-id="abc123"]' \
+  --request-id "variant-abc123"
+```
+
+Use the `selector` and `request-id` from the original variant request payload exactly as provided.
+
+To just list discovered exports without sending (for debugging), add `--no-send`.
+
+**Fallback for non-React projects:** If `npx flare-dev render` doesn't work (e.g. Vue, Svelte, complex setup), render the variants yourself using whatever tools the project has, then send each one with curl:
 
 ```bash
 curl -X POST http://127.0.0.1:4318/api/agent/respond \
   -H "Content-Type: application/json" \
-  -d '{
-    "origin": "http://localhost:5173",
-    "selector": "h1.hero-title",
-    "outerHTML": "<h1 class=\"hero-title\">Variant 1 text</h1>",
-    "variantRequestId": "variant-1"
-  }'
+  -d '{"origin":"<origin>","selector":"<selector from request>","outerHTML":"<rendered html>","variantRequestId":"<request-id>","variantSource":"<your component source code>","variantExportName":"Variant1"}'
 ```
 
-Each response creates a new frame on the canvas below the source, so the user can compare all variants side-by-side. Generate the requested number of variants, each as a separate POST. Be creative — each variant should take a meaningfully different approach to the prompt.
+Include `variantSource` and `variantExportName` — Flare snapshots these so when the user accepts a variant, the push payload includes your actual component code, not reverse-engineered HTML.
+
+Each variant creates a new frame on the canvas. Be creative — each variant should take a meaningfully different design approach to the prompt.
+
+#### Step 4: Clean up
+
+Delete `_flare_variants.tsx` after all variants have been sent and confirmed. Flare snapshots your component source code at send time, so the file isn't needed after that.
 
 Do NOT modify source files for variant requests. Only respond via the bridge.
 

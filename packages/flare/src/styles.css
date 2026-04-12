@@ -60,50 +60,68 @@
   --f-input-shadow: inset 0 1px 2px rgba(0 0 0 / 0.07);
 }
 
-/* ── Shell (morphing container) ─────────────────── */
+/* ── Collapsed tab ─────────────────────────────── */
+.f-shell-tab {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 48px;
+  height: 24px;
+  border-radius: 8px 8px 0 0;
+  border: 1px solid var(--f-border);
+  border-bottom: none;
+  background: var(--f-bg);
+  color: var(--f-text);
+  z-index: var(--f-z);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: height 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.15s;
+  animation: f-tab-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.f-shell-tab:hover {
+  height: 32px;
+  border-color: var(--f-border-h);
+}
+
+.f-shell-tab svg {
+  width: 14px;
+  height: 14px;
+}
+
+@keyframes f-tab-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.9); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+/* ── Expanded panel ────────────────────────────── */
 .f-shell {
   position: fixed;
-  width: 40px;
-  height: 40px;
+  top: 12px;
+  right: 12px;
+  width: 320px;
+  height: calc(100dvh - 24px);
   border-radius: 12px;
   border: 1px solid var(--f-border);
   background: var(--f-bg);
   color: var(--f-text);
   z-index: var(--f-z);
-  box-shadow: var(--f-shadow-trigger);
+  box-shadow: var(--f-shadow-panel);
   overflow: hidden;
   font-family: var(--f-font-label);
   font-size: 12px;
-  transition:
-    top 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    height 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    border-radius 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: f-panel-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.f-shell:not(.f-expanded) {
-  cursor: grab;
-  touch-action: none;
-}
-
-.f-shell:not(.f-expanded):hover {
-  border-color: var(--f-border-h);
-  box-shadow: var(--f-shadow-trigger-h);
+.f-shell.f-compact {
+  height: auto;
+  max-height: calc(100dvh - 24px);
 }
 
 .f-shell.f-dragging {
   transition: none;
-}
-
-.f-shell.f-expanded {
-  width: 320px;
-  height: calc(100dvh - 24px);
-  border-radius: 12px;
-  box-shadow: var(--f-shadow-panel);
 }
 
 .f-shell.f-shell-hidden {
@@ -112,19 +130,18 @@
   pointer-events: none;
 }
 
-/* Trigger icon (centered in collapsed state) */
-.f-shell-icon {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  pointer-events: none;
+.f-shell.f-shell-closing {
+  animation: f-panel-out 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.f-shell.f-expanded .f-shell-icon {
-  opacity: 0;
-  transform: scale(0.8);
+@keyframes f-panel-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes f-panel-out {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.95); }
 }
 
 /* Panel content (fades in after morph) */
@@ -132,14 +149,6 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-
-.f-shell-content.f-visible {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 /* ── Top Bar ────────────────────────────────────── */
@@ -373,148 +382,6 @@
   transform: scale(0.97);
 }
 
-/* ── Bridge Dialog ─────────────────────────────── */
-.f-bridge-dialog-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(10 10 12 / 0.5);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 52px 14px 14px;
-  z-index: 12;
-  animation: f-backdrop-in 0.18s ease-out both;
-}
-
-@keyframes f-backdrop-in {
-  from { opacity: 0; backdrop-filter: blur(0); }
-  to   { opacity: 1; backdrop-filter: blur(4px); }
-}
-
-.f-bridge-dialog {
-  width: 100%;
-  max-width: 288px;
-  border-radius: var(--f-radius);
-  border: 1px solid var(--f-border-h);
-  background: color-mix(in srgb, var(--f-bg) 92%, #000 8%);
-  box-shadow: 0 24px 48px rgba(0 0 0 / 0.18), 0 8px 16px rgba(0 0 0 / 0.1), 0 0 0 1px rgba(255 255 255 / 0.04);
-  overflow: hidden;
-  animation: f-pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.f-bridge-dialog-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 14px 12px;
-  border-bottom: 1px solid var(--f-border);
-}
-
-.f-bridge-dialog-title {
-  font-family: var(--f-font-label);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--f-text);
-  letter-spacing: -0.01em;
-}
-
-.f-bridge-dialog-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 5px;
-  font-family: var(--f-font-label);
-  font-size: 11px;
-  color: var(--f-text-dim);
-}
-
-.f-bridge-dialog-status .f-bridge-dot {
-  width: 6px;
-  height: 6px;
-  flex-shrink: 0;
-}
-
-.f-bridge-dialog-close {
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: var(--f-radius-sm);
-  background: transparent;
-  color: var(--f-text-mute);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.12s, color 0.12s, transform 0.1s;
-}
-
-.f-bridge-dialog-close:hover {
-  background: var(--f-surface-2);
-  color: var(--f-text);
-}
-
-.f-bridge-dialog-close:active {
-  transform: scale(0.9);
-}
-
-.f-bridge-dialog-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding: 14px;
-}
-
-.f-bridge-dialog-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.f-bridge-dialog-label {
-  font-family: var(--f-font-label);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--f-text-mute);
-}
-
-.f-bridge-dialog-copy {
-  font-family: var(--f-font-label);
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--f-text-dim);
-}
-
-.f-bridge-dialog-code {
-  display: block;
-  padding: 9px 10px;
-  border-radius: var(--f-radius-sm);
-  border: 1px solid var(--f-border);
-  background: var(--f-surface);
-  color: var(--f-text);
-  font-family: var(--f-font);
-  font-size: 10.5px;
-  line-height: 1.5;
-  word-break: break-word;
-  box-shadow: var(--f-input-shadow);
-  transition: border-color 0.15s, background 0.15s;
-  cursor: text;
-  user-select: all;
-  -webkit-user-select: all;
-}
-
-.f-bridge-dialog-code:hover {
-  border-color: var(--f-border-h);
-  background: var(--f-surface-2);
-}
-
-.f-bridge-dialog-code::selection {
-  background: rgba(255 122 0 / 0.2);
-}
 
 /* ── Inspect Bar ────────────────────────────────── */
 .f-inspect-bar {
@@ -2002,6 +1869,10 @@
   color: #a855f7;
 }
 
+.f-canvas-frame.f-frame-variant.f-frame-active .f-canvas-iframe {
+  pointer-events: auto;
+}
+
 .f-canvas-frame.f-frame-variant.f-frame-active {
   outline-color: #a855f7;
 }
@@ -2390,12 +2261,21 @@
   opacity: 0.7;
 }
 
-/* ── Frame push button ────────────────────────────── */
-.f-canvas-frame-push {
+/* ── Frame action buttons ─────────────────────────── */
+.f-canvas-frame-actions {
   position: absolute;
   top: 100%;
   right: 0;
   margin-top: calc(10px * var(--f-inv-zoom, 1));
+  display: flex;
+  align-items: center;
+  gap: calc(6px * var(--f-inv-zoom, 1));
+  pointer-events: auto;
+  transform: scale(var(--f-inv-zoom, 1));
+  transform-origin: right top;
+}
+
+.f-canvas-frame-push {
   display: flex;
   align-items: center;
   gap: 5px;
@@ -2408,9 +2288,6 @@
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
-  pointer-events: auto;
-  transform: scale(var(--f-inv-zoom, 1));
-  transform-origin: right top;
   box-shadow: 0 2px 8px rgba(255 122 0 / 0.15);
   transition: opacity 0.15s, transform 0.1s;
 }
@@ -2420,7 +2297,28 @@
 }
 
 .f-canvas-frame-push:active {
-  transform: scale(var(--f-inv-zoom, 1)) scale(0.95);
+  transform: scale(0.95);
+}
+
+.f-canvas-frame-reset {
+  padding: 5px 10px;
+  border: 1px solid var(--f-border);
+  border-radius: var(--f-radius-sm);
+  background: var(--f-bg);
+  color: var(--f-text-secondary);
+  font-family: var(--f-font-label);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.f-canvas-frame-reset:hover {
+  opacity: 0.8;
+}
+
+.f-canvas-frame-reset:active {
+  transform: scale(0.95);
 }
 
 .f-canvas-iframe {
@@ -2473,8 +2371,10 @@
 .f-canvas-hud {
   position: absolute;
   bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: fit-content;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -2514,6 +2414,52 @@
 .f-canvas-hud-icon.f-active {
   color: var(--f-accent);
   background: var(--f-accent-dim);
+}
+
+.f-canvas-hud-icon:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.f-canvas-hud-icon:disabled:hover {
+  background: transparent;
+  color: var(--f-text-dim);
+}
+
+/* ── Bridge offline banner ───────────────────────── */
+a.f-canvas-bridge-banner {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.f-canvas-bridge-banner:hover {
+  border-color: var(--f-border-h);
+}
+
+.f-canvas-bridge-banner {
+  position: absolute;
+  bottom: 56px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: fit-content;
+  padding: 6px 14px;
+  background: var(--f-bg);
+  border: 1px solid var(--f-border);
+  border-radius: var(--f-radius);
+  font-family: var(--f-font-label);
+  font-size: 11px;
+  color: var(--f-text-dim);
+  white-space: nowrap;
+  z-index: 1;
+  box-shadow: 0 2px 8px rgba(0 0 0 / 0.1);
+  animation: f-pop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both 0.3s;
+}
+
+.f-canvas-bridge-banner code {
+  font-family: var(--f-font);
+  color: var(--f-accent);
+  font-size: 10.5px;
 }
 
 

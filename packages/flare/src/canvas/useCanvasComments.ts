@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasViewport } from "./useCanvasPanZoom";
 import type { FrameState } from "./Canvas";
+import { getCssSelector, getFlareId, removeFlareId } from "../utils";
 
 export type CommentStatus = "pending" | "applied" | "failed";
 
@@ -8,7 +9,8 @@ export interface CanvasComment {
   id: string;
   frameId: string;
   el: Element;
-  selector: string;
+  selector: string;       // stable lookup: [data-flare-id="..."]
+  cssSelector: string;    // descriptive context for the agent
   outerHTML: string;
   text: string;
   x: number; // iframe-local
@@ -24,13 +26,6 @@ export interface PendingComment {
 }
 
 let _commentId = 0;
-
-function simpleSelector(el: Element): string {
-  if (el.id) return `#${CSS.escape(el.id)}`;
-  const tag = el.tagName.toLowerCase();
-  const cls = Array.from(el.classList).slice(0, 3).map((c) => CSS.escape(c)).join(".");
-  return cls ? `${tag}.${cls}` : tag;
-}
 
 export function useCanvasComments(
   canvasRef: React.RefObject<HTMLDivElement | null>,
@@ -60,7 +55,8 @@ export function useCanvasComments(
         id: `comment-${++_commentId}`,
         frameId: pending.frameId,
         el: pending.el,
-        selector: simpleSelector(pending.el),
+        selector: getFlareId(pending.el),
+        cssSelector: getCssSelector(pending.el),
         outerHTML: pending.el.outerHTML,
         text: text.trim(),
         x: pending.x,
@@ -84,7 +80,8 @@ export function useCanvasComments(
         id: `comment-${++_commentId}`,
         frameId,
         el,
-        selector: simpleSelector(el),
+        selector: getFlareId(el),
+        cssSelector: getCssSelector(el),
         outerHTML: el.outerHTML,
         text: text.trim(),
         x: rect.left,
@@ -98,7 +95,11 @@ export function useCanvasComments(
   );
 
   const removeComment = useCallback((id: string) => {
-    setComments((prev) => prev.filter((c) => c.id !== id));
+    setComments((prev) => {
+      const removed = prev.find((c) => c.id === id);
+      if (removed) removeFlareId(removed.el);
+      return prev.filter((c) => c.id !== id);
+    });
   }, []);
 
   const updateCommentStatus = useCallback(

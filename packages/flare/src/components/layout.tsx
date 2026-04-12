@@ -297,6 +297,7 @@ export function ElementComment({
 export function CopyPromptBar({
   changeCount,
   onPush,
+  onCopy,
   onReset,
   bridgeConnected = false,
   externalState = null,
@@ -304,6 +305,7 @@ export function CopyPromptBar({
 }: {
   changeCount: number;
   onPush?: () => Promise<boolean>;
+  onCopy?: () => void;
   onReset: () => void;
   bridgeConnected?: boolean;
   externalState?: "pushing" | null;
@@ -373,13 +375,18 @@ export function CopyPromptBar({
             </span>
             <div className="f-copy-bar-actions">
               <button className="f-reset-btn" onClick={onReset}>Reset</button>
-              <button
-                className="f-copy-btn"
-                onClick={handlePush}
-                disabled={!bridgeConnected}
-              >
-                Push to Agent
-              </button>
+              {bridgeConnected ? (
+                <button className="f-copy-btn" onClick={handlePush}>
+                  Push to Agent
+                </button>
+              ) : (
+                <button className="f-copy-btn" onClick={() => {
+                  onCopy?.();
+                  startAppliedState();
+                }}>
+                  Copy Prompt
+                </button>
+              )}
             </div>
           </>
         ) : effectiveState === "pushing" ? (

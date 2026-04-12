@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasViewport } from "./useCanvasPanZoom";
 import type { FrameState } from "./Canvas";
+import { getCssSelector, getElementWithContext, getFlareId } from "../utils";
 
 export interface VariantTarget {
   el: Element;
   frameId: string;
-  selector: string;
+  selector: string;       // stable lookup: [data-flare-id="..."]
+  cssSelector: string;    // descriptive context for the agent
   outerHTML: string;
+  contextHTML: string;
   x: number;
   y: number;
 }
@@ -14,20 +17,15 @@ export interface VariantTarget {
 export interface VariantRequest {
   id: string;
   frameId: string;
-  selector: string;
+  selector: string;       // stable lookup
+  cssSelector: string;    // descriptive context
   outerHTML: string;
+  contextHTML: string;
   prompt: string;
   count: number;
 }
 
-let _variantId = 0;
-
-function simpleSelector(el: Element): string {
-  if (el.id) return `#${CSS.escape(el.id)}`;
-  const tag = el.tagName.toLowerCase();
-  const cls = Array.from(el.classList).slice(0, 3).map((c) => CSS.escape(c)).join(".");
-  return cls ? `${tag}.${cls}` : tag;
-}
+const uid = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export function useCanvasVariants(
   canvasRef: React.RefObject<HTMLDivElement | null>,
@@ -56,10 +54,12 @@ export function useCanvasVariants(
     (prompt: string, count: number): VariantRequest | null => {
       if (!target || !prompt.trim() || count < 1) return null;
       const req: VariantRequest = {
-        id: `variant-${++_variantId}`,
+        id: `variant-${uid()}`,
         frameId: target.frameId,
         selector: target.selector,
+        cssSelector: target.cssSelector,
         outerHTML: target.outerHTML,
+        contextHTML: target.contextHTML,
         prompt: prompt.trim(),
         count,
       };
@@ -138,8 +138,10 @@ export function useCanvasVariants(
           setTarget({
             el: t,
             frameId: frame.id,
-            selector: simpleSelector(t),
+            selector: getFlareId(t),
+            cssSelector: getCssSelector(t),
             outerHTML: t.outerHTML,
+            contextHTML: getElementWithContext(t),
             x: rect.left,
             y: rect.top,
           });

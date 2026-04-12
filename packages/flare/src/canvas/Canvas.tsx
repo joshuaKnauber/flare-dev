@@ -5,7 +5,7 @@ import {
   ExternalLink,
   Maximize,
   MessageSquare,
-  Split,
+  GitBranchPlus,
   SquareMousePointer,
   X,
 } from "lucide-react";
@@ -18,7 +18,7 @@ import {
 } from "../components";
 import { useElementSource, useStyleEditor, useTheme } from "../hooks";
 import { getBridgeStatus, pollAgentResponses, pushSnapshotToAgent } from "../bridge-client";
-import { getCssSelector, serializeElementChange } from "../utils";
+import { buildPrompt, getCssSelector, getElementWithContext, serializeElementChange } from "../utils";
 import type { ElementEntry } from "../utils";
 import { useCanvasComments, type PendingComment, type CanvasComment } from "./useCanvasComments";
 import { useCanvasVariants, type VariantTarget } from "./useCanvasVariants";
@@ -41,6 +41,10 @@ export interface FrameState {
   y: number;
   isVariant?: boolean;
   variantRequestId?: string;
+  variantSelector?: string;
+  variantExportName?: string;
+  variantSourceCode?: string;
+  variantHTML?: string;
   variantIndex?: number;
   loading?: boolean;
 }
@@ -94,12 +98,42 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
   framesRef.current = frames;
   const [activeFrameId, setActiveFrameId] = useState<string | null>(null);
 
+  // Track dismissed variant request IDs so stale agent responses are ignored
+  const dismissedVariantIds = useRef(new Set<string>());
+
   // Content changes from applied comments (tracked for push)
   const [contentChanges, setContentChanges] = useState<
     { frameId: string; selector: string; originalHTML: string; newHTML: string; comment: string }[]
   >([]);
-  const [guides, setGuides] = useState<ColumnGuide[]>(() => [defaultGuide()]);
-  const [guidesVisible, setGuidesVisible] = useState(false);
+  const [guides, setGuides] = useState<ColumnGuide[]>(() => {
+    try {
+      const stored = localStorage.getItem("flare-guides");
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return [defaultGuide()];
+  });
+  const [guidesVisible, setGuidesVisible] = useState(() => {
+    try {
+      return localStorage.getItem("flare-guides-visible") === "true";
+    } catch {}
+    return false;
+  });
+
+  const setGuidesAndSave = useCallback((v: ColumnGuide[] | ((prev: ColumnGuide[]) => ColumnGuide[])) => {
+    setGuides((prev) => {
+      const next = typeof v === "function" ? v(prev) : v;
+      try { localStorage.setItem("flare-guides", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  const setGuidesVisibleAndSave = useCallback((v: boolean | ((prev: boolean) => boolean)) => {
+    setGuidesVisible((prev) => {
+      const next = typeof v === "function" ? v(prev) : v;
+      try { localStorage.setItem("flare-guides-visible", String(next)); } catch {}
+      return next;
+    });
+  }, []);
 
   const initZoom = 0.65;
 
@@ -180,7 +214,7 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
       if (active) setBridgeAvailable(status.available);
     };
     void poll();
-    const id = setInterval(() => void poll(), 2000);
+    const id = setInterval(() => void poll(), 5000);
     return () => { active = false; clearInterval(id); };
   }, []);
 
@@ -194,22 +228,33 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
       const canvas = canvasRef.current;
       if (!canvas) return;
 
+      const claimed = new Set<string>();
+
       for (const resp of responses) {
-        // Variant response → find the placeholder frame and apply
+        // Skip stale responses from dismissed variant requests
+        if (resp.variantRequestId && dismissedVariantIds.current.has(resp.variantRequestId)) {
+          continue;
+        }
+
+        // Variant response → find placeholder frame and inject HTML
         if (resp.variantRequestId) {
           const reqId = resp.variantRequestId;
-          // Find the first loading placeholder for this request
           const placeholder = framesRef.current.find(
-            (f) => f.variantRequestId === reqId && f.loading,
+            (f) => f.variantRequestId === reqId && f.loading && !claimed.has(f.id),
           );
+          if (placeholder) claimed.add(placeholder.id);
           if (placeholder) {
-            // Apply the outerHTML after the iframe loads
-            const applyToFrame = () => {
+            const selector = placeholder.variantSelector ?? resp.selector;
+
+            const applyToFrame = (attempt = 0) => {
               const frameEl = canvas.querySelector<HTMLElement>(
                 `[data-frame-id="${placeholder.id}"]`,
               );
               const iframe = frameEl?.querySelector("iframe") as HTMLIFrameElement | null;
-              if (!iframe) return;
+              if (!iframe) {
+                if (attempt < 10) { setTimeout(() => applyToFrame(attempt + 1), 200); }
+                return;
+              }
               const apply = () => {
                 let success = false;
                 let error = "";
@@ -217,11 +262,11 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
                   const doc = iframe.contentDocument;
                   if (!doc) { error = "No contentDocument"; return; }
                   let el: Element | null = null;
-                  try { el = doc.querySelector(resp.selector); } catch {}
+                  try { el = doc.querySelector(selector); } catch {}
                   if (!el) {
                     try {
-                      const escaped = resp.selector.replace(
-                        /\.([^.#\s]+)/g, (_, cls: string) => `.${CSS.escape(cls)}`,
+                      const escaped = selector.replace(
+                        /\.([^.#\s]+)/g, (_m: string, cls: string) => `.${CSS.escape(cls)}`,
                       );
                       el = doc.querySelector(escaped);
                     } catch {}
@@ -230,40 +275,24 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
                     el.outerHTML = resp.outerHTML;
                     success = true;
                   } else {
-                    error = `Element not found: ${resp.selector}`;
+                    error = `Element not found: ${selector}`;
                   }
                 } catch (err) {
                   error = err instanceof Error ? err.message : String(err);
                 }
-                // Mark as done loading
                 setFrames((prev) =>
                   prev.map((f) =>
-                    f.id === placeholder.id ? { ...f, loading: !success } : f,
+                    f.id === placeholder.id
+                      ? {
+                          ...f,
+                          loading: !success,
+                          variantHTML: resp.outerHTML,
+                          variantSourceCode: resp.variantSource,
+                          variantExportName: resp.variantExportName,
+                        }
+                      : f,
                   ),
                 );
-                // Retry on failure
-                if (!success) {
-                  const retrySnapshot = {
-                    updatedAt: new Date().toISOString(),
-                    changes: [{
-                      selector: resp.selector,
-                      path: resp.selector,
-                      textSnippet: "",
-                      comment: [
-                        `[VARIANT RETRY] Previous variant response failed to apply: ${error}`,
-                        `Request ID: ${reqId}`,
-                        `Selector used: ${resp.selector}`,
-                        ``,
-                        `Original outerHTML that failed:`,
-                        resp.outerHTML,
-                        ``,
-                        `Please respond again with a corrected selector and outerHTML via POST /api/agent/respond with variantRequestId: "${reqId}"`,
-                      ].join("\n"),
-                      changes: [],
-                    }],
-                  };
-                  void pushSnapshotToAgent(retrySnapshot);
-                }
               };
               if (iframe.contentDocument?.readyState === "complete") {
                 apply();
@@ -305,7 +334,7 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
               try {
                 const escaped = resp.selector.replace(
                   /\.([^.#\s]+)/g,
-                  (_, cls: string) => `.${CSS.escape(cls)}`,
+                  (_m: string, cls: string) => `.${CSS.escape(cls)}`,
                 );
                 el = doc.querySelector(escaped);
               } catch { /* selector unusable */ }
@@ -401,7 +430,28 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
         setActiveFrameId(frameId);
       }
     },
+    [getFrameChanges, contentChanges, editor.acknowledgeEntries],
+  );
+
+  const copyFrame = useCallback(
+    (frameId: string) => {
+      const entries = getFrameChanges(frameId);
+      const text = buildPrompt(entries);
+      if (text) {
+        void navigator.clipboard.writeText(text);
+        editor.acknowledgeEntries(entries);
+      }
+    },
     [getFrameChanges, editor.acknowledgeEntries],
+  );
+
+  const resetFrame = useCallback(
+    (frameId: string) => {
+      const entries = getFrameChanges(frameId);
+      if (entries.length > 0) editor.resetEntries(entries);
+      setContentChanges((prev) => prev.filter((c) => c.frameId !== frameId));
+    },
+    [getFrameChanges, editor.resetEntries],
   );
 
   // ── Immediate comment push ──────────────────────
@@ -412,9 +462,9 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
         changes: [
           {
             selector: comment.selector,
-            path: comment.selector,
+            path: comment.cssSelector,
             textSnippet: comment.el.textContent?.slice(0, 80) || undefined,
-            comment: `${comment.text}\n\nCurrent element HTML:\n${comment.outerHTML}`,
+            comment: `[CANVAS] ${comment.text}\n\nCurrent element in context:\n${getElementWithContext(comment.el)}`,
             changes: [],
           },
         ],
@@ -445,8 +495,22 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
       const sourceFrame = framesRef.current.find((f) => f.id === req.frameId);
       if (!sourceFrame) return;
 
-      // Remove any existing variants first
-      setFrames((prev) => prev.filter((f) => !f.isVariant));
+      // Capture source scroll position
+      const canvas = canvasRef.current;
+      const sourceEl = canvas?.querySelector<HTMLElement>(`[data-frame-id="${req.frameId}"]`);
+      const sourceIframe = sourceEl?.querySelector("iframe") as HTMLIFrameElement | null;
+      const scrollX = sourceIframe?.contentWindow?.scrollX ?? 0;
+      const scrollY = sourceIframe?.contentWindow?.scrollY ?? 0;
+
+      // Remove any existing variants first, marking their request IDs as dismissed
+      setFrames((prev) => {
+        for (const f of prev) {
+          if (f.isVariant && f.variantRequestId) {
+            dismissedVariantIds.current.add(f.variantRequestId);
+          }
+        }
+        return prev.filter((f) => !f.isVariant);
+      });
 
       // Create placeholder frames (loading skeletons) stacked vertically
       const VARIANT_GAP = 40;
@@ -463,11 +527,29 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
           y: sourceFrame.y + sourceFrame.height + VARIANT_TOP_GAP + VARIANT_PAD + i * (sourceFrame.height + VARIANT_GAP),
           isVariant: true,
           variantRequestId: req.id,
+          variantSelector: req.cssSelector,
           variantIndex: i,
           loading: true,
         });
       }
       setFrames((prev) => [...prev, ...placeholders]);
+
+      // Restore scroll position in variant iframes after they load
+      if (scrollX || scrollY) {
+        setTimeout(() => {
+          for (const ph of placeholders) {
+            const el = canvas?.querySelector<HTMLElement>(`[data-frame-id="${ph.id}"]`);
+            const iframe = el?.querySelector("iframe") as HTMLIFrameElement | null;
+            if (!iframe) continue;
+            const restore = () => iframe.contentWindow?.scrollTo(scrollX, scrollY);
+            if (iframe.contentDocument?.readyState === "complete") {
+              restore();
+            } else {
+              iframe.addEventListener("load", restore, { once: true });
+            }
+          }
+        }, 50);
+      }
 
       // Stop variant mode
       stopVariantMode();
@@ -478,18 +560,23 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
         changes: [
           {
             selector: req.selector,
-            path: req.selector,
+            path: req.cssSelector,
             textSnippet: "",
             comment: [
               `[VARIANT REQUEST] Generate ${req.count} variant(s) of this element.`,
               `Prompt: ${req.prompt}`,
               `Request ID: ${req.id}`,
+              `Element selector: ${req.selector}`,
+              `CSS path: ${req.cssSelector}`,
               ``,
-              `Current element HTML:`,
-              req.outerHTML,
+              `Current element in context:`,
+              req.contextHTML,
               ``,
-              `Respond with ${req.count} separate POST requests to /api/agent/respond, each with:`,
-              `{ "origin": "<origin>", "selector": "${req.selector}", "outerHTML": "<modified html>", "variantRequestId": "${req.id}" }`,
+              `Write ${req.count} variant components in _flare_variants.tsx (e.g. Variant1, Variant2, ...) then notify the bridge:`,
+              `npx flare-dev render _flare_variants.tsx --origin "${window.location.origin}" --selector '${req.selector}' --request-id "${req.id}"`,
+              ``,
+              `Important: Always include \`import React from "react"\` at the top of the variants file.`,
+              `Only use CSS classes that already exist on the page, or use inline styles for new ones.`,
             ].join("\n"),
             changes: [],
           },
@@ -555,36 +642,48 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Find the variant's iframe and the source frame's iframe
-    const variantEl = canvas.querySelector<HTMLElement>(`[data-frame-id="${variant.id}"]`);
-    const variantIframe = variantEl?.querySelector("iframe") as HTMLIFrameElement | null;
-
-    // Find source frame — a non-variant frame (the one the variants were generated from)
-    // Use the first non-variant frame at the expected position
     const reqId = variant.variantRequestId;
     const sourceFrame = all.find((f) => !f.isVariant);
     if (!sourceFrame) return;
     const sourceEl = canvas.querySelector<HTMLElement>(`[data-frame-id="${sourceFrame.id}"]`);
     const sourceIframe = sourceEl?.querySelector("iframe") as HTMLIFrameElement | null;
 
-    if (variantIframe?.contentDocument && sourceIframe?.contentDocument) {
-      // Copy the variant's full body HTML to the source frame
-      const variantBody = variantIframe.contentDocument.body;
-      const sourceBody = sourceIframe.contentDocument.body;
-      sourceBody.innerHTML = variantBody.innerHTML;
+    const variantHTML = variant.variantHTML;
+    if (!variantHTML || !sourceIframe?.contentDocument) return;
 
-      // Track as a content change for pushing later
-      setContentChanges((prev) => [
-        ...prev,
-        {
-          frameId: sourceFrame.id,
-          selector: "body",
-          originalHTML: "",
-          newHTML: sourceBody.innerHTML,
-          comment: `Applied variant ${(variant.variantIndex ?? 0) + 1}`,
-        },
-      ]);
+    const selector = variant.variantSelector;
+    const sourceDoc = sourceIframe.contentDocument;
+
+    // Find the target element in the source frame
+    let sourceTarget: Element | null = null;
+    if (selector) {
+      try { sourceTarget = sourceDoc.querySelector(selector); } catch {}
+      if (!sourceTarget) {
+        try {
+          const escaped = selector.replace(
+            /\.([^.#\s]+)/g, (_m: string, cls: string) => `.${CSS.escape(cls)}`,
+          );
+          sourceTarget = sourceDoc.querySelector(escaped);
+        } catch {}
+      }
     }
+    if (!sourceTarget) return;
+
+    const originalHTML = sourceTarget.outerHTML;
+    sourceTarget.outerHTML = variantHTML;
+
+    setContentChanges((prev) => [
+      ...prev,
+      {
+        frameId: sourceFrame.id,
+        selector: selector ?? "",
+        originalHTML,
+        newHTML: variantHTML,
+        comment: variant.variantSourceCode
+          ? `[VARIANT ACCEPTED] Apply ${variant.variantExportName ?? "variant"} to source.\n\nVariant component code:\n${variant.variantSourceCode}`
+          : `Applied variant ${(variant.variantIndex ?? 0) + 1}`,
+      },
+    ]);
 
     // Remove all variants in this group
     setFrames((prev) => prev.filter((f) => f.variantRequestId !== reqId));
@@ -609,10 +708,12 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
     };
     setFrames((prev) => [...prev, dup]);
 
-    // Capture source body HTML (includes inline style changes + DOM mods)
+    // Capture source body HTML and scroll position
     const sourceEl = canvas.querySelector<HTMLElement>(`[data-frame-id="${frameId}"]`);
     const sourceIframe = sourceEl?.querySelector("iframe") as HTMLIFrameElement | null;
     const sourceBodyHTML = sourceIframe?.contentDocument?.body?.innerHTML;
+    const srcScrollX = sourceIframe?.contentWindow?.scrollX ?? 0;
+    const srcScrollY = sourceIframe?.contentWindow?.scrollY ?? 0;
 
     // Copy content changes + convert style editor changes to content changes
     const styleEntries = getFrameChanges(frameId);
@@ -648,6 +749,9 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
         try {
           const doc = dupIframe.contentDocument;
           if (doc) doc.body.innerHTML = sourceBodyHTML;
+          if (srcScrollX || srcScrollY) {
+            dupIframe.contentWindow?.scrollTo(srcScrollX, srcScrollY);
+          }
         } catch {}
       };
       if (dupIframe.contentDocument?.readyState === "complete") {
@@ -690,7 +794,7 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       const t = e.target as HTMLElement;
-      if (t.closest(".f-canvas-frame-dup") || t.closest(".f-canvas-frame-push")) return;
+      if (t.closest(".f-canvas-frame-dup") || t.closest(".f-canvas-frame-push") || t.closest(".f-canvas-frame-reset") || t.closest(".f-canvas-frame-choose") || t.closest(".f-variant-popover")) return;
 
       const frameEl = t.closest<HTMLElement>("[data-frame-id]");
       if (frameEl && !spaceRef.current) {
@@ -741,11 +845,13 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  // Lock body scroll while canvas is open
+  // Lock body scroll and prevent overscroll navigation while canvas is open.
+  // Uses a <style> tag instead of inline styles so host page JS can't overwrite it.
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    const style = document.createElement("style");
+    style.textContent = "body { overflow: hidden !important; overscroll-behavior: none !important; }";
+    document.head.appendChild(style);
+    return () => { style.remove(); };
   }, []);
 
   // ── Keyboard ─────────────────────────────────────
@@ -780,7 +886,7 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
         duplicateSelection();
       }
       if (e.shiftKey && e.key === "G") {
-        setGuidesVisible((v) => !v);
+        setGuidesVisibleAndSave((v) => !v);
       }
     };
     const up = (e: KeyboardEvent) => {
@@ -912,6 +1018,8 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
                     getChanges={getFrameChanges}
                     contentChangeCount={contentChanges.filter((c) => c.frameId === frame.id).length}
                     onPush={pushFrame}
+                    onCopy={copyFrame}
+                    onReset={resetFrame}
                     bridgeAvailable={bridgeAvailable}
                   />
                 </>
@@ -949,6 +1057,7 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
                     className="f-canvas-frame-dismiss"
                     onClick={(e) => {
                       e.stopPropagation();
+                      dismissedVariantIds.current.add(reqId);
                       setFrames((prev) => prev.filter((f) => f.variantRequestId !== reqId));
                     }}
                     title="Dismiss variants"
@@ -1030,6 +1139,17 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
           />
         )}
 
+        {!bridgeAvailable && (
+          <a
+            className="f-canvas-bridge-banner"
+            href="https://tryflare.dev#bridge-onboarding"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Run <code>/flare-dev</code> skill to enable comments &amp; variants
+          </a>
+        )}
+
         <div className="f-canvas-hud">
           <button
             className={`f-canvas-hud-icon${inspecting ? " f-active" : ""}`}
@@ -1041,14 +1161,16 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
           <button
             className={`f-canvas-hud-icon${variantMode ? " f-active" : ""}`}
             onClick={variantMode ? stopVariantMode : startVariantMode}
-            title="Generate variants"
+            disabled={!bridgeAvailable}
+            title={bridgeAvailable ? "Generate variants" : "Bridge required"}
           >
-            <Split size={14} strokeWidth={1.5} />
+            <GitBranchPlus size={14} strokeWidth={1.5} />
           </button>
           <button
             className={`f-canvas-hud-icon${commenting ? " f-active" : ""}`}
             onClick={commenting ? stopCommenting : startCommenting}
-            title="Comment tool"
+            disabled={!bridgeAvailable}
+            title={bridgeAvailable ? "Comment tool" : "Bridge required"}
           >
             <MessageSquare size={14} strokeWidth={1.5} />
           </button>
@@ -1070,16 +1192,18 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
                   onHoverEnd={() => {}}
                 />
               )}
-              <ElementComment
-                key={commentKeyRef.current}
-                value=""
-                onChange={(text) => {
-                  if (!text.trim() || !selectedEl || !selectedFrameId) return;
-                  const comment = addComment(selectedEl, selectedFrameId, text.trim());
-                  if (comment) void pushComment(comment);
-                  commentKeyRef.current += 1;
-                }}
-              />
+              {bridgeAvailable && (
+                <ElementComment
+                  key={commentKeyRef.current}
+                  value=""
+                  onChange={(text) => {
+                    if (!text.trim() || !selectedEl || !selectedFrameId) return;
+                    const comment = addComment(selectedEl, selectedFrameId, text.trim());
+                    if (comment) void pushComment(comment);
+                    commentKeyRef.current += 1;
+                  }}
+                />
+              )}
             </div>
             <div className="f-scroll">
               <PropertySections editor={editor} selectedEl={selectedEl} />
@@ -1090,9 +1214,9 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
             <>
                   <GuideSettings
                     guides={guides}
-                    onChange={setGuides}
+                    onChange={setGuidesAndSave}
                     visible={guidesVisible}
-                    onToggleVisible={() => setGuidesVisible((v) => !v)}
+                    onToggleVisible={() => setGuidesVisibleAndSave((v) => !v)}
                   />
             </>
           </div>
@@ -1109,11 +1233,16 @@ function FramePushButton({
   getChanges,
   contentChangeCount,
   onPush,
+  onCopy,
+  onReset,
+  bridgeAvailable,
 }: {
   frameId: string;
   getChanges: (id: string) => ElementEntry[];
   contentChangeCount: number;
   onPush: (id: string) => Promise<void>;
+  onCopy: (id: string) => void;
+  onReset: (id: string) => void;
   bridgeAvailable: boolean;
 }) {
   const changes = getChanges(frameId);
@@ -1124,17 +1253,43 @@ function FramePushButton({
   if (count === 0) return null;
 
   return (
-    <button
-      className="f-canvas-frame-push"
-      onClick={(e) => {
-        e.stopPropagation();
-        void onPush(frameId);
-      }}
-      title={`Make ${count} change${count !== 1 ? "s" : ""} real`}
-    >
-      <ArrowUpRight size={13} strokeWidth={2} />
-      <span>Make {count} change{count !== 1 ? "s" : ""} real</span>
-    </button>
+    <div className="f-canvas-frame-actions">
+      <button
+        className="f-canvas-frame-reset"
+        onClick={(e) => {
+          e.stopPropagation();
+          onReset(frameId);
+        }}
+        title="Reset changes"
+      >
+        Reset
+      </button>
+      {bridgeAvailable ? (
+        <button
+          className="f-canvas-frame-push"
+          onClick={(e) => {
+            e.stopPropagation();
+            void onPush(frameId);
+          }}
+          title={`Make ${count} change${count !== 1 ? "s" : ""} real`}
+        >
+          <ArrowUpRight size={13} strokeWidth={2} />
+          <span>Make {count} change{count !== 1 ? "s" : ""} real</span>
+        </button>
+      ) : (
+        <button
+          className="f-canvas-frame-push"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopy(frameId);
+          }}
+          title={`Copy ${count} change${count !== 1 ? "s" : ""} as prompt`}
+        >
+          <Copy size={13} strokeWidth={2} />
+          <span>Copy Prompt</span>
+        </button>
+      )}
+    </div>
   );
 }
 

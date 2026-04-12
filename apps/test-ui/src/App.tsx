@@ -147,11 +147,11 @@ export default function App() {
             <p className="text-xs font-medium tracking-[0.15em] uppercase text-[#999] mb-5">
               Now in private beta
             </p>
-            <h1 className="font-[Playfair_Display,Georgia,serif] text-[clamp(40px,6vw,72px)] font-medium leading-[1.05] tracking-[-0.02em] mb-20">
+            <h1 className="font-[Playfair_Display,Georgia,serif] text-[clamp(40px,6vw,72px)] font-medium leading-[1.05] tracking-[-0.02em] mb-10">
               Light that
               <br />
               <em className="font-[Playfair_Display,Georgia,serif]">
-                understands
+                gets
               </em>{" "}
               you.
             </h1>
@@ -159,7 +159,7 @@ export default function App() {
               An intelligent lighting system that adapts to your sleep, your
               mood, your space. No switches. No schedules.
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-8">
               <a
                 href="#waitlist"
                 className="px-7 py-3.5 bg-[#1a1a1a] text-white text-[15px] font-medium rounded-full hover:bg-[#333] transition-colors"

@@ -23,7 +23,6 @@ import {
   useTheme,
 } from "./hooks";
 import {
-  getBridgeConnectionInfo,
   getBridgeStatus,
   pushSnapshotToAgent,
 } from "./bridge-client";
@@ -32,7 +31,7 @@ import {
   IconMoon,
   IconSun,
 } from "./icons";
-import { serializeElementChange } from "./utils";
+import { buildPrompt, serializeElementChange } from "./utils";
 import { Canvas } from "./canvas";
 
 export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
@@ -43,23 +42,16 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
       return false;
     }
   })();
-  const [expanded, setExpanded] = useState(initOpen); // content mounted
-  const [open, setOpen] = useState(initOpen); // morph target (CSS class)
-  const [contentReady, setContentReady] = useState(initOpen);
-  const morphTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [expanded, setExpanded] = useState(initOpen);
+  const [closing, setClosing] = useState(false);
+  const mounted = expanded || closing;
 
   const handleOpen = useCallback(() => {
     setExpanded(true);
-    // rAF ensures the DOM has the collapsed size before we trigger the morph
-    requestAnimationFrame(() => setOpen(true));
-    try {
-      localStorage.setItem("flare-expanded", "true");
-    } catch {}
-    clearTimeout(morphTimer.current);
-    morphTimer.current = setTimeout(() => setContentReady(true), 200);
+    setClosing(false);
+    try { localStorage.setItem("flare-expanded", "true"); } catch {}
   }, []);
 
-  // Allow external code to open Flare by writing to localStorage
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === "flare-open") handleOpen();
@@ -69,13 +61,13 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
   }, [handleOpen]);
 
   const handleClose = useCallback(() => {
-    setContentReady(false);
-    setOpen(false); // start morph immediately
-    try {
-      localStorage.setItem("flare-expanded", "false");
-    } catch {}
-    clearTimeout(morphTimer.current);
-    morphTimer.current = setTimeout(() => setExpanded(false), 250);
+    setExpanded(false);
+    setClosing(true);
+    try { localStorage.setItem("flare-expanded", "false"); } catch {}
+    setTimeout(() => {
+      setClosing(false);
+      drag.resetPosition();
+    }, 400);
   }, []);
 
   const handleHideSession = useCallback(() => {
@@ -108,7 +100,7 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
   }, [menuOpen]);
 
   const { theme, toggle: toggleTheme } = useTheme(shadowHost);
-  const drag = useDrag(open);
+  const drag = useDrag(expanded);
   const {
     inspecting,
     selectedEl,
@@ -139,9 +131,7 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
   const styleChangeCount = editor.totalStyleChangeCount;
   const commentChangeCount = editor.totalCommentCount;
   const [bridgeAvailable, setBridgeAvailable] = useState(false);
-  const [bridgeDialogOpen, setBridgeDialogOpen] = useState(false);
   const [autoPushState, setAutoPushState] = useState<"pushing" | null>(null);
-  const bridgeInfo = getBridgeConnectionInfo();
   const autoPushInFlightRef = useRef(false);
   const prevCommentCountRef = useRef(commentChangeCount);
 
@@ -162,6 +152,7 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
   }, [editor.getAllChanges]);
 
   useEffect(() => {
+    if (!expanded) return;
     let active = true;
 
     const pollStatus = async () => {
@@ -173,13 +164,13 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
     void pollStatus();
     const interval = window.setInterval(() => {
       void pollStatus();
-    }, 2000);
+    }, 5000);
 
     return () => {
       active = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [expanded]);
 
   const handlePush = useCallback(async () => {
     const { entries, snapshot } = buildAgentSnapshot();
@@ -209,16 +200,6 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
     });
   }, [bridgeAvailable, commentChangeCount, handlePush, styleChangeCount]);
 
-  const bridgePrompt = [
-    "Use the flare-dev skill (/flare-dev) to listen for and apply my visual changes.",
-    "",
-    `Origin: ${bridgeInfo.origin ?? ""}`,
-    "",
-    "If the skill is not installed, run:",
-    "npx flare-dev bridge &",
-    `npx flare-dev watch --origin "${bridgeInfo.origin ?? ""}"`,
-  ].join("\n");
-
   const bridgeStatus = bridgeAvailable
       ? {
           tone: "connected",
@@ -231,43 +212,33 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
           detail: "Start the local bridge to enable agent push.",
         };
 
-  const shellClass = [
-    "f-shell",
-    open ? "f-expanded" : "",
-    canvasMode ? "f-shell-hidden" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   return (
     <>
     {canvasMode && <Canvas onClose={() => setCanvasMode(false)} shadowHost={shadowHost} />}
-    <div
-      ref={drag.shellRef}
-      className={shellClass}
-      style={{ left: drag.pos.x, top: drag.pos.y }}
-      onPointerDown={!expanded ? drag.onPointerDown : undefined}
-      onClick={
-        !expanded ? () => { if (!drag.moved.current) handleOpen(); } : undefined
-      }
-      role={!expanded ? "button" : undefined}
-      tabIndex={!expanded ? 0 : undefined}
-      onKeyDown={
-        !expanded
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") handleOpen();
-            }
-          : undefined
-      }
-    >
-      {/* Trigger icon — fades out as shell expands */}
-      <div className="f-shell-icon">
-        <IconFlare />
-      </div>
 
-      {/* Panel content — mounts when expanded, fades in after morph */}
-      {expanded && (
-        <div className={`f-shell-content${contentReady ? " f-visible" : ""}`}>
+    {/* Collapsed tab */}
+    {!expanded && !canvasMode && (
+      <button
+        className="f-shell-tab"
+        onClick={handleOpen}
+        title="Open Flare"
+      >
+        <IconFlare />
+      </button>
+    )}
+
+    {/* Expanded panel */}
+    {mounted && !canvasMode && (
+      <div
+        ref={drag.shellRef}
+        className={[
+          "f-shell f-expanded",
+          closing && "f-shell-closing",
+          !selectedEl && "f-compact",
+        ].filter(Boolean).join(" ")}
+        style={drag.hasMoved ? { left: drag.pos.x, top: drag.pos.y } : undefined}
+      >
+        <div className="f-shell-content">
           {/* Top bar */}
           <div className="f-topbar" onPointerDown={drag.onPointerDown}>
             <button
@@ -277,15 +248,18 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
             >
               <IconFlare />
               <span>Flare</span>
-              <button
+              <a
                 className={`f-bridge-indicator f-bridge-${bridgeStatus.tone}`}
-                onClick={(e) => { e.stopPropagation(); setBridgeDialogOpen(true); }}
+                href="https://tryflare.dev#bridge-onboarding"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
                 title={bridgeStatus.label}
                 aria-label={bridgeStatus.label}
               >
                 <span className="f-bridge-dot" />
-              </button>
+              </a>
             </button>
             <div className="f-topbar-actions">
               <div className="f-settings-wrap" ref={menuRef} onPointerDown={(e) => e.stopPropagation()}>
@@ -345,47 +319,6 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
             </div>
           </div>
 
-          {bridgeDialogOpen && (
-            <div className="f-bridge-dialog-backdrop" onClick={() => setBridgeDialogOpen(false)}>
-              <div
-                className="f-bridge-dialog"
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                <div className="f-bridge-dialog-header">
-                  <div>
-                    <div className="f-bridge-dialog-title">Bridge Connection</div>
-                    <div className="f-bridge-dialog-status">
-                      <span className={`f-bridge-dot f-bridge-${bridgeStatus.tone}`} />
-                      <span>{bridgeStatus.label}</span>
-                    </div>
-                  </div>
-                  <button
-                    className="f-bridge-dialog-close"
-                    onClick={() => setBridgeDialogOpen(false)}
-                    aria-label="Close bridge dialog"
-                  >
-                    <X size={14} strokeWidth={1.5} />
-                  </button>
-                </div>
-
-                <div className="f-bridge-dialog-body">
-                  <p className="f-bridge-dialog-copy">{bridgeStatus.detail}</p>
-
-                  <div className="f-bridge-dialog-section">
-                    <span className="f-bridge-dialog-label">Start the bridge</span>
-                    <code className="f-bridge-dialog-code">npx flare-dev bridge</code>
-                  </div>
-
-                  <div className="f-bridge-dialog-section">
-                    <span className="f-bridge-dialog-label">Prompt for your agent</span>
-                    <code className="f-bridge-dialog-code">{bridgePrompt}</code>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Inspect bar */}
           <div className="f-inspect-bar">
             <button
@@ -430,14 +363,22 @@ export default function App({ shadowHost }: { shadowHost: HTMLElement }) {
           <CopyPromptBar
             changeCount={changeCount}
             onPush={handlePush}
+            onCopy={() => {
+              const entries = editor.getAllChanges();
+              const text = buildPrompt(entries);
+              if (text) {
+                void navigator.clipboard.writeText(text);
+                editor.acknowledgeEntries(entries);
+              }
+            }}
             onReset={editor.resetAll}
             bridgeConnected={bridgeAvailable}
             externalState={autoPushState}
             externalProgressMs={800}
           />
         </div>
-      )}
-    </div>
+      </div>
+    )}
     </>
   );
 }
