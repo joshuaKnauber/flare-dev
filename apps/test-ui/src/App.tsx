@@ -147,7 +147,7 @@ export default function App() {
             <p className="text-xs font-medium tracking-[0.15em] uppercase text-[#999] mb-5">
               Now in private beta
             </p>
-            <h1 className="font-[Playfair_Display,Georgia,serif] text-[clamp(40px,6vw,72px)] font-medium leading-[1.05] tracking-[-0.02em] mb-10">
+            <h1 className="font-[Playfair_Display,Georgia,serif] text-[clamp(40px,6vw,72px)] font-medium leading-[1.05] tracking-[-0.02em] mb-8">
               Light that
               <br />
               <em className="font-[Playfair_Display,Georgia,serif]">
@@ -155,7 +155,7 @@ export default function App() {
               </em>{" "}
               you.
             </h1>
-            <p className="text-lg text-[#666] leading-relaxed max-w-md mb-10 font-light">
+            <p className="text-lg text-[#666] leading-relaxed max-w-md mb-15 font-light">
               An intelligent lighting system that adapts to your sleep, your
               mood, your space. No switches. No schedules.
             </p>

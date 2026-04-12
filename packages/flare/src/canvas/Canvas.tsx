@@ -846,12 +846,57 @@ export function Canvas({ onClose, shadowHost }: CanvasProps) {
   }, []);
 
   // Lock body scroll and prevent overscroll navigation while canvas is open.
-  // Uses a <style> tag instead of inline styles so host page JS can't overwrite it.
   useEffect(() => {
     const style = document.createElement("style");
     style.textContent = "body { overflow: hidden !important; overscroll-behavior: none !important; }";
     document.head.appendChild(style);
-    return () => { style.remove(); };
+
+    // Re-inject if HMR strips the style tag
+    const observer = new MutationObserver(() => {
+      if (!document.head.contains(style)) {
+        document.head.appendChild(style);
+      }
+    });
+    observer.observe(document.head, { childList: true });
+
+    // Also disable overscroll inside iframes — the browser triggers the
+    // back/forward gesture from iframe scroll boundaries independently.
+    const canvas = canvasRef.current;
+    const patchIframe = (iframe: HTMLIFrameElement) => {
+      const inject = () => {
+        try {
+          const doc = iframe.contentDocument;
+          if (doc?.documentElement) {
+            doc.documentElement.style.overscrollBehavior = "none";
+          }
+        } catch {}
+      };
+      if (iframe.contentDocument?.readyState === "complete") inject();
+      iframe.addEventListener("load", inject);
+      return () => iframe.removeEventListener("load", inject);
+    };
+    const iframeCleanups: (() => void)[] = [];
+    const iframeObserver = canvas ? new MutationObserver(() => {
+      iframeCleanups.forEach((fn) => fn());
+      iframeCleanups.length = 0;
+      canvas.querySelectorAll<HTMLIFrameElement>("iframe").forEach((iframe) => {
+        iframeCleanups.push(patchIframe(iframe));
+      });
+    }) : null;
+    if (canvas && iframeObserver) {
+      iframeObserver.observe(canvas, { childList: true, subtree: true });
+      // Patch existing iframes
+      canvas.querySelectorAll<HTMLIFrameElement>("iframe").forEach((iframe) => {
+        iframeCleanups.push(patchIframe(iframe));
+      });
+    }
+
+    return () => {
+      observer.disconnect();
+      iframeObserver?.disconnect();
+      iframeCleanups.forEach((fn) => fn());
+      style.remove();
+    };
   }, []);
 
   // ── Keyboard ─────────────────────────────────────
